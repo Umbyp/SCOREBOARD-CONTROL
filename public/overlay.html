@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scoreboard Overlay</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 90px;
+      overflow: hidden;
+      background: transparent !important;
+    }
+
+    #scorebar {
+      width: 1920px;
+      height: 90px;
+      display: flex;
+      align-items: stretch;
+      font-family: 'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
+    }
+
+    .team-panel {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .team-panel-bg {
+      position: absolute;
+      inset: 0;
+    }
+
+    #team-a-panel .team-panel-bg {
+      background: linear-gradient(90deg, rgba(255,107,53,0.25) 0%, rgba(0,0,0,0.85) 60%);
+      clip-path: polygon(0 0, 100% 0, 96% 100%, 0 100%);
+    }
+
+    #team-b-panel .team-panel-bg {
+      background: linear-gradient(270deg, rgba(0,212,255,0.25) 0%, rgba(0,0,0,0.85) 60%);
+      clip-path: polygon(4% 0, 100% 0, 100% 100%, 0 100%);
+    }
+
+    .team-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+    }
+
+    #team-b-panel .team-content { flex-direction: row-reverse; }
+
+    .color-bar { width: 3px; height: 56px; border-radius: 2px; flex-shrink: 0; }
+    .team-info { flex: 1; }
+    #team-b-panel .team-info { text-align: right; }
+
+    .team-label  { font-size: 9px; letter-spacing: 0.4em; opacity: 0.8; line-height: 1; }
+    .team-name   { font-size: 26px; letter-spacing: 0.12em; color: white; line-height: 1.1; }
+
+    .team-stats  { display: flex; gap: 12px; margin-top: 2px; }
+    #team-b-panel .team-stats { justify-content: flex-end; }
+
+    .stat        { font-size: 9px; letter-spacing: 0.15em; color: rgba(255,255,255,0.4); font-family: Arial, sans-serif; font-weight: bold; }
+    .stat span   { color: rgba(255,255,255,0.75); }
+
+    .foul-warn {
+      font-size: 9px; letter-spacing: 0.15em; color: #FF4444;
+      font-family: Arial, sans-serif; font-weight: bold;
+      animation: blink 0.8s ease-in-out infinite; display: none;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    .team-score {
+      font-size: 64px; line-height: 1;
+      transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .team-score.bump { transform: scale(1.35); }
+
+    #center-clock {
+      width: 210px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      position: relative; z-index: 10;
+    }
+
+    #center-clock-bg {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.92);
+      clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
+      border-top: 2px solid rgba(255,215,0,0.4);
+    }
+
+    .quarter-lbl { font-size: 10px; letter-spacing: 0.5em; color: rgba(255,215,0,0.8); position: relative; z-index:1; }
+
+    #clock-display {
+      font-size: 40px; letter-spacing: 0.08em; color: white;
+      position: relative; z-index:1; line-height:1;
+      transition: color 0.3s, text-shadow 0.3s;
+    }
+    #clock-display.live { color: #FFD700; text-shadow: 0 0 20px rgba(255,215,0,0.7); }
+
+    .live-row { position:relative; z-index:1; display:flex; align-items:center; gap:5px; margin-top:3px; }
+
+    #live-dot {
+      width:5px; height:5px; border-radius:50%;
+      background: rgba(255,255,255,0.2); transition: all 0.3s;
+    }
+    #live-dot.live {
+      background: #00FF88; box-shadow: 0 0 8px #00FF88;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    #live-lbl { font-size:8px; letter-spacing:0.35em; color:rgba(255,255,255,0.3); transition: color 0.3s; }
+    #live-lbl.live { color:#00FF88; }
+
+    /* debug badge — ซ่อนหลังเช็คเสร็จแล้วได้ */
+    #dbg {
+      position: fixed; bottom: 2px; right: 6px;
+      font-size: 8px; color: rgba(255,255,255,0.25);
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+
+<div id="scorebar">
+  <!-- Team A -->
+  <div class="team-panel" id="team-a-panel">
+    <div class="team-panel-bg"></div>
+    <div class="team-content">
+      <div class="color-bar" id="cb-a" style="background:#FF6B35"></div>
+      <div class="team-info">
+        <div class="team-label" id="lbl-a" style="color:#FF6B35">TEAM</div>
+        <div class="team-name"  id="name-a">HOME</div>
+        <div class="team-stats">
+          <div class="stat">FOULS <span id="fouls-a">0</span></div>
+          <div class="stat">T.O. <span id="to-a">5</span></div>
+          <div class="foul-warn" id="fw-a">⚠ FOUL TROUBLE</div>
+        </div>
+      </div>
+      <div class="team-score" id="score-a" style="color:#FF6B35">0</div>
+    </div>
+  </div>
+
+  <!-- Clock -->
+  <div id="center-clock">
+    <div id="center-clock-bg"></div>
+    <div class="quarter-lbl" id="quarter-lbl">Q1</div>
+    <div id="clock-display">10:00</div>
+    <div class="live-row">
+      <div id="live-dot"></div>
+      <div id="live-lbl">READY</div>
+    </div>
+  </div>
+
+  <!-- Team B -->
+  <div class="team-panel" id="team-b-panel">
+    <div class="team-panel-bg"></div>
+    <div class="team-content">
+      <div class="color-bar" id="cb-b" style="background:#00D4FF"></div>
+      <div class="team-info">
+        <div class="team-label" id="lbl-b" style="color:#00D4FF">TEAM</div>
+        <div class="team-name"  id="name-b">AWAY</div>
+        <div class="team-stats">
+          <div class="stat">FOULS <span id="fouls-b">0</span></div>
+          <div class="stat">T.O. <span id="to-b">5</span></div>
+          <div class="foul-warn" id="fw-b">⚠ FOUL TROUBLE</div>
+        </div>
+      </div>
+      <div class="team-score" id="score-b" style="color:#00D4FF">0</div>
+    </div>
+  </div>
+</div>
+
+<div id="dbg">●</div>
+
+<!-- โหลด socket.io โดยตรงจาก server port 3001 -->
+<script src="http://localhost:3001/socket.io/socket.io.js"></script>
+<script>
+  var prev = null;
+
+  function pad(n) { return String(n).padStart(2,'0'); }
+  function fmt(s) { return pad(Math.floor(s/60))+':'+pad(s%60); }
+
+  function bump(id) {
+    var el = document.getElementById(id);
+    el.classList.add('bump');
+    setTimeout(function(){ el.classList.remove('bump'); }, 300);
+  }
+
+  function render(s) {
+    var A = s.teamA, B = s.teamB;
+
+    // ── Team A ──
+    document.getElementById('name-a').textContent   = A.name;
+    document.getElementById('lbl-a').style.color    = A.color;
+    document.getElementById('cb-a').style.background= A.color;
+    document.getElementById('fouls-a').textContent  = A.fouls;
+    document.getElementById('to-a').textContent     = A.timeouts;
+    document.getElementById('fw-a').style.display   = A.fouls >= 5 ? 'block' : 'none';
+    var sa = document.getElementById('score-a');
+    if (prev && prev.teamA.score !== A.score) bump('score-a');
+    sa.textContent = A.score;
+    sa.style.color = A.color;
+
+    // ── Team B ──
+    document.getElementById('name-b').textContent   = B.name;
+    document.getElementById('lbl-b').style.color    = B.color;
+    document.getElementById('cb-b').style.background= B.color;
+    document.getElementById('fouls-b').textContent  = B.fouls;
+    document.getElementById('to-b').textContent     = B.timeouts;
+    document.getElementById('fw-b').style.display   = B.fouls >= 5 ? 'block' : 'none';
+    var sb = document.getElementById('score-b');
+    if (prev && prev.teamB.score !== B.score) bump('score-b');
+    sb.textContent = B.score;
+    sb.style.color = B.color;
+
+    // ── Clock ──
+    var cd = document.getElementById('clock-display');
+    cd.textContent = fmt(s.clockSeconds);
+    cd.className   = s.isRunning ? 'live' : '';
+    document.getElementById('live-dot').className = s.isRunning ? 'live' : '';
+    document.getElementById('live-lbl').className = s.isRunning ? 'live' : '';
+    document.getElementById('live-lbl').textContent = s.isRunning ? 'LIVE' : 'PAUSED';
+
+    // ── Quarter ──
+    var q = s.quarter;
+    document.getElementById('quarter-lbl').textContent = q > 4 ? 'OT'+(q-4) : 'Q'+q;
+
+    prev = s;
+  }
+
+  // ── Polling fallback (ทำงานเสมอ เพื่อให้ scoreboard แสดงแม้ socket ล้มเหลว) ──
+  function poll() {
+    fetch('http://localhost:3001/api/state')
+      .then(function(r){ return r.json(); })
+      .then(function(s){ render(s); document.getElementById('dbg').textContent = '● poll'; })
+      .catch(function(){ document.getElementById('dbg').textContent = '✗ server?'; });
+  }
+
+  // poll ทุก 500ms เป็น fallback
+  var pollTimer = setInterval(poll, 500);
+  poll(); // poll ทันทีตอนโหลด
+
+  // ── Socket.io (real-time ถ้าเชื่อมได้) ──
+  try {
+    var socket = io('http://localhost:3001', {
+      transports: ['polling', 'websocket'],
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 5000,
+      timeout: 8000
+    });
+
+    socket.on('connect', function() {
+      // เมื่อ socket เชื่อมได้ หยุด poll เพื่อประหยัด
+      clearInterval(pollTimer);
+      document.getElementById('dbg').textContent = '● socket';
+    });
+
+    socket.on('stateUpdate', function(s) { render(s); });
+
+    socket.on('disconnect', function() {
+      // ถ้า socket หลุด ให้ fallback กลับมา poll
+      pollTimer = setInterval(poll, 500);
+      document.getElementById('dbg').textContent = '○ reconnecting';
+    });
+  } catch(e) {
+    // socket.io ไม่โหลด — ใช้ polling อย่างเดียว
+    document.getElementById('dbg').textContent = '● poll-only';
+  }
+</script>
+</body>
+</html>
