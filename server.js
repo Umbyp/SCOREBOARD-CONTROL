@@ -9,8 +9,13 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
-
+const io = new Server(server, {
+  cors: {
+    origin: ["https://bangmod-score-live.vercel.app", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 let gameState = {
   teamA: { name: "HOME", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#FF6B35" },
   teamB: { name: "AWAY", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#00D4FF" },
@@ -67,7 +72,11 @@ function stopShot() { clearInterval(shotInterval); shotInterval = null; }
 
 function broadcast() { io.emit("stateUpdate", gameState); }
 
-app.use((req, res, next) => { res.header("Access-Control-Allow-Origin", "*"); next(); });
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://bangmod-score-live.vercel.app");
+  res.header("Access-Control-Allow-Private-Network", "true");
+  next();
+});
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/overlay", (req, res) => res.sendFile(path.join(__dirname, "public", "overlay.html")));
 app.get("/api/state", (req, res) => res.json(gameState));
@@ -216,9 +225,17 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => console.log("❌ Disconnected:", socket.id));
 });
 
-const PORT = 3001;
+// 1. ปรับการตั้งค่า CORS (ใส่ URL ของ Vercel ของคุณ)
+// 2. เพิ่ม Middleware นี้เพื่อแก้ปัญหา Chrome บล็อก Localhost (ถ้ายังเทสผสมกันอยู่)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Private-Network", "true");
+  next();
+});
+
+// 3. ปรับการฟัง Port ให้รองรับระบบ Cloud
+const PORT = process.env.PORT || 3001; // Render จะส่งค่า process.env.PORT มาให้
 server.listen(PORT, () => {
-  console.log(`\n🏀 Basketball Scoreboard`);
+ console.log(`\n🏀 Basketball Scoreboard`);
   console.log(`========================`);
   console.log(`🖥️  Control : http://localhost:5173`);
   console.log(`📺 Overlay  : http://localhost:${PORT}/overlay\n`);
