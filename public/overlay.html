@@ -160,7 +160,7 @@
   </div>
 </div>
 
-<script src="http://localhost:3001/socket.io/socket.io.js"></script>
+<script src="https://scoreboard-control.onrender.com/socket.io/socket.io.js"></script>
 <script>
   let lastData = null;
 
@@ -255,13 +255,13 @@
   }
 
   // Socket Connection
-  const socket = io('http://localhost:3001');
+  const socket = io('https://scoreboard-control.onrender.com');
   socket.on('stateUpdate', render);
   
   // Fallback Polling
   setInterval(() => {
     if (!socket.connected) {
-      fetch('http://localhost:3001/api/state')
+      fetch('https://scoreboard-control.onrender.com/api/state')
         .then(r => r.json())
         .then(render)
         .catch(e => {});

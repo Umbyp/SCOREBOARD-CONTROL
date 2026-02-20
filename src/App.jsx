@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:3001");
+const socket = io("https://scoreboard-control.onrender.com");
 
 // ─── Sounds (Preloaded) ──────────────────────────────────────────────────────
 const hornAudio = typeof Audio !== "undefined" ? new Audio("https://actions.google.com/sounds/v1/alarms/air_horn.ogg") : null;
