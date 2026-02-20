@@ -2,281 +2,271 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Scoreboard Overlay</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <title>Professional Scoreboard Overlay</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@700&display=swap" rel="stylesheet" />
   <style>
+    /* Reset & Base */
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     html, body {
-      width: 1920px;
-      height: 90px;
-      overflow: hidden;
-      background: transparent !important;
+      width: 1920px; height: 200px;
+      overflow: hidden; background: transparent !important;
+      font-family: 'Bebas Neue', cursive;
     }
 
-    #scorebar {
-      width: 1920px;
-      height: 90px;
+    #overlay-wrapper {
+      width: 1300px;
+      margin: 30px auto;
       display: flex;
-      align-items: stretch;
-      font-family: 'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
-    }
-
-    .team-panel {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      padding: 0 20px;
-      gap: 14px;
+      background: linear-gradient(180deg, rgba(15, 15, 20, 0.9) 0%, rgba(5, 5, 10, 1) 100%);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
       position: relative;
-      overflow: hidden;
     }
 
-    .team-panel-bg {
-      position: absolute;
-      inset: 0;
+    /* Team Panels */
+    .team-panel { flex: 1; display: flex; flex-direction: column; position: relative; }
+    .top-strip { height: 6px; width: 100%; border-radius: 12px 12px 0 0; }
+    
+    .team-inner {
+      flex: 1; display: flex; align-items: center; 
+      padding: 10px 40px; gap: 30px;
+    }
+    #team-b-panel .team-inner { flex-direction: row-reverse; }
+
+    .team-info { flex: 1; display: flex; flex-direction: column; }
+    #team-b-panel .team-info { align-items: flex-end; }
+
+    /* Fouls & Possession Row */
+    .meta-row { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+    #team-b-panel .meta-row { flex-direction: row-reverse; }
+
+    .foul-box {
+      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px;
+      padding: 4px 12px; border-radius: 4px; background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6);
+      text-transform: uppercase;
+    }
+    .foul-box span { font-size: 18px; color: #fff; margin-left: 6px; }
+
+    .possession { 
+      font-size: 14px; padding: 3px 10px; border-radius: 4px; font-weight: bold;
+      background: rgba(255, 255, 255, 0.1); display: none;
+      box-shadow: 0 0 15px currentColor;
     }
 
-    #team-a-panel .team-panel-bg {
-      background: linear-gradient(90deg, rgba(255,107,53,0.25) 0%, rgba(0,0,0,0.85) 60%);
-      clip-path: polygon(0 0, 100% 0, 96% 100%, 0 100%);
+    .bonus-tag { 
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 900; 
+      display: none; animation: pulse 1s infinite; 
     }
 
-    #team-b-panel .team-panel-bg {
-      background: linear-gradient(270deg, rgba(0,212,255,0.25) 0%, rgba(0,0,0,0.85) 60%);
-      clip-path: polygon(4% 0, 100% 0, 100% 100%, 0 100%);
+    /* Names & Scores */
+    .name { font-size: 48px; color: white; letter-spacing: 0.05em; line-height: 1; }
+    
+    .score { 
+      font-size: 100px; line-height: 0.9; font-weight: 900; 
+      text-shadow: 0 0 30px rgba(0,0,0,0.5);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    
+    /* Animation for score change */
+    .bump { 
+      transform: scale(1.2); 
+      text-shadow: 0 0 40px currentColor;
     }
 
-    .team-content {
+    /* Timeouts Pips */
+    .pips-row { display: flex; gap: 6px; margin-top: 10px; }
+    .pip { 
+        width: 22px; height: 6px; background: rgba(255,255,255,0.1); 
+        border-radius: 2px; transition: background 0.4s ease;
+    }
+
+    /* Center Section (Clock) */
+    #clock-core {
+      width: 280px; 
+      background: rgba(255, 255, 255, 0.03);
+      border-left: 1px solid rgba(255,255,255,0.1);
+      border-right: 1px solid rgba(255,255,255,0.1);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
       position: relative;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      width: 100%;
     }
 
-    #team-b-panel .team-content { flex-direction: row-reverse; }
-
-    .color-bar { width: 3px; height: 56px; border-radius: 2px; flex-shrink: 0; }
-    .team-info { flex: 1; }
-    #team-b-panel .team-info { text-align: right; }
-
-    .team-label  { font-size: 9px; letter-spacing: 0.4em; opacity: 0.8; line-height: 1; }
-    .team-name   { font-size: 26px; letter-spacing: 0.12em; color: white; line-height: 1.1; }
-
-    .team-stats  { display: flex; gap: 12px; margin-top: 2px; }
-    #team-b-panel .team-stats { justify-content: flex-end; }
-
-    .stat        { font-size: 9px; letter-spacing: 0.15em; color: rgba(255,255,255,0.4); font-family: Arial, sans-serif; font-weight: bold; }
-    .stat span   { color: rgba(255,255,255,0.75); }
-
-    .foul-warn {
-      font-size: 9px; letter-spacing: 0.15em; color: #FF4444;
-      font-family: Arial, sans-serif; font-weight: bold;
-      animation: blink 0.8s ease-in-out infinite; display: none;
+    #q-label { 
+      font-size: 16px; color: #FFD700; letter-spacing: 0.3em; 
+      margin-bottom: 4px; font-weight: bold;
     }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+    
+    #main-time { font-size: 58px; color: white; line-height: 1; font-variant-numeric: tabular-nums; }
+    #main-time.running { color: #fff; text-shadow: 0 0 20px rgba(255,255,255,0.4); }
+    #main-time.expired { color: #ff3333; animation: flash 0.5s infinite; }
 
-    .team-score {
-      font-size: 64px; line-height: 1;
-      transition: transform 0.15s cubic-bezier(0.34,1.56,0.64,1);
-    }
-    .team-score.bump { transform: scale(1.35); }
+    .hr { width: 120px; height: 2px; background: rgba(255,255,255,0.15); margin: 8px 0; }
 
-    #center-clock {
-      width: 210px; flex-shrink: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      position: relative; z-index: 10;
-    }
+    .shot-row { display: flex; align-items: center; gap: 12px; }
+    .shot-tag { font-size: 14px; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; }
+    #shot-time { font-size: 48px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
 
-    #center-clock-bg {
-      position: absolute; inset: 0;
-      background: rgba(0,0,0,0.92);
-      clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
-      border-top: 2px solid rgba(255,215,0,0.4);
-    }
+    /* Animations */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-    .quarter-lbl { font-size: 10px; letter-spacing: 0.5em; color: rgba(255,215,0,0.8); position: relative; z-index:1; }
-
-    #clock-display {
-      font-size: 40px; letter-spacing: 0.08em; color: white;
-      position: relative; z-index:1; line-height:1;
-      transition: color 0.3s, text-shadow 0.3s;
-    }
-    #clock-display.live { color: #FFD700; text-shadow: 0 0 20px rgba(255,215,0,0.7); }
-
-    .live-row { position:relative; z-index:1; display:flex; align-items:center; gap:5px; margin-top:3px; }
-
-    #live-dot {
-      width:5px; height:5px; border-radius:50%;
-      background: rgba(255,255,255,0.2); transition: all 0.3s;
-    }
-    #live-dot.live {
-      background: #00FF88; box-shadow: 0 0 8px #00FF88;
-      animation: pulse 1s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
-
-    #live-lbl { font-size:8px; letter-spacing:0.35em; color:rgba(255,255,255,0.3); transition: color 0.3s; }
-    #live-lbl.live { color:#00FF88; }
-
-    /* debug badge — ซ่อนหลังเช็คเสร็จแล้วได้ */
-    #dbg {
-      position: fixed; bottom: 2px; right: 6px;
-      font-size: 8px; color: rgba(255,255,255,0.25);
-      font-family: monospace;
-    }
   </style>
 </head>
 <body>
 
-<div id="scorebar">
-  <!-- Team A -->
+<div id="overlay-wrapper">
   <div class="team-panel" id="team-a-panel">
-    <div class="team-panel-bg"></div>
-    <div class="team-content">
-      <div class="color-bar" id="cb-a" style="background:#FF6B35"></div>
+    <div class="top-strip" id="strip-a"></div>
+    <div class="team-inner">
       <div class="team-info">
-        <div class="team-label" id="lbl-a" style="color:#FF6B35">TEAM</div>
-        <div class="team-name"  id="name-a">HOME</div>
-        <div class="team-stats">
-          <div class="stat">FOULS <span id="fouls-a">0</span></div>
-          <div class="stat">T.O. <span id="to-a">5</span></div>
-          <div class="foul-warn" id="fw-a">⚠ FOUL TROUBLE</div>
+        <div class="meta-row">
+          <div id="poss-a" class="possession">◀ BALL</div>
+          <div class="foul-box">FOULS <span id="tf-a">0</span></div>
+          <div id="bonus-a" class="bonus-tag">BONUS</div>
         </div>
+        <div class="name" id="name-a">HOME</div>
+        <div class="pips-row" id="pips-a"></div>
       </div>
-      <div class="team-score" id="score-a" style="color:#FF6B35">0</div>
+      <div class="score" id="score-a">0</div>
     </div>
   </div>
 
-  <!-- Clock -->
-  <div id="center-clock">
-    <div id="center-clock-bg"></div>
-    <div class="quarter-lbl" id="quarter-lbl">Q1</div>
-    <div id="clock-display">10:00</div>
-    <div class="live-row">
-      <div id="live-dot"></div>
-      <div id="live-lbl">READY</div>
+  <div id="clock-core">
+    <div id="q-label">Q1</div>
+    <div id="main-time">10:00</div>
+    <div class="hr"></div>
+    <div class="shot-row">
+      <div class="shot-tag">SHOT</div>
+      <div id="shot-time">24</div>
     </div>
   </div>
 
-  <!-- Team B -->
   <div class="team-panel" id="team-b-panel">
-    <div class="team-panel-bg"></div>
-    <div class="team-content">
-      <div class="color-bar" id="cb-b" style="background:#00D4FF"></div>
+    <div class="top-strip" id="strip-b"></div>
+    <div class="team-inner">
       <div class="team-info">
-        <div class="team-label" id="lbl-b" style="color:#00D4FF">TEAM</div>
-        <div class="team-name"  id="name-b">AWAY</div>
-        <div class="team-stats">
-          <div class="stat">FOULS <span id="fouls-b">0</span></div>
-          <div class="stat">T.O. <span id="to-b">5</span></div>
-          <div class="foul-warn" id="fw-b">⚠ FOUL TROUBLE</div>
+        <div class="meta-row">
+          <div id="poss-b" class="possession">BALL ▶</div>
+          <div class="foul-box">FOULS <span id="tf-b">0</span></div>
+          <div id="bonus-b" class="bonus-tag">BONUS</div>
         </div>
+        <div class="name" id="name-b">AWAY</div>
+        <div class="pips-row" id="pips-b"></div>
       </div>
-      <div class="team-score" id="score-b" style="color:#00D4FF">0</div>
+      <div class="score" id="score-b">0</div>
     </div>
   </div>
 </div>
 
-<div id="dbg">●</div>
-
-<!-- โหลด socket.io โดยตรงจาก server port 3001 -->
 <script src="http://localhost:3001/socket.io/socket.io.js"></script>
 <script>
-  var prev = null;
+  let lastData = null;
 
-  function pad(n) { return String(n).padStart(2,'0'); }
-  function fmt(s) { return pad(Math.floor(s/60))+':'+pad(s%60); }
+  function formatMain(tenths) {
+    const s = Math.max(0, tenths);
+    if (s > 600) {
+      const totalSec = Math.floor(s / 10);
+      return Math.floor(totalSec / 60).toString().padStart(2, '0') + ':' + (totalSec % 60).toString().padStart(2, '0');
+    }
+    // สำหรับเวลาที่ต่ำกว่า 1 นาที แสดงทศนิยม
+    return Math.floor(s / 10).toString().padStart(2, '0') + '.' + (s % 10);
+  }
 
-  function bump(id) {
-    var el = document.getElementById(id);
-    el.classList.add('bump');
-    setTimeout(function(){ el.classList.remove('bump'); }, 300);
+  function formatShot(tenths) {
+    if (tenths <= 0) return "0";
+    if (tenths > 100) return Math.ceil(tenths / 10);
+    return (tenths / 10).toFixed(1);
+  }
+
+  function updateTeam(prefix, team, isPoss) {
+    document.getElementById(`name-${prefix}`).textContent = team.name;
+    const scoreEl = document.getElementById(`score-${prefix}`);
+    
+    // Check score change for animation
+    if (lastData && lastData[`team${prefix.toUpperCase()}`].score !== team.score) {
+      scoreEl.classList.add('bump');
+      setTimeout(() => scoreEl.classList.remove('bump'), 400);
+    }
+    
+    scoreEl.textContent = team.score;
+    scoreEl.style.color = team.color;
+    document.getElementById(`strip-${prefix}`).style.background = team.color;
+    
+    // Possession Arrow with Glow
+    const pEl = document.getElementById(`poss-${prefix}`);
+    pEl.style.display = isPoss ? 'block' : 'none';
+    pEl.style.color = team.color;
+
+    // Team Fouls Logic (Basketball Rules: 5 Fouls = Bonus)
+    const tfEl = document.getElementById(`tf-${prefix}`);
+    tfEl.textContent = team.teamFouls;
+    if (team.teamFouls >= 5) tfEl.style.color = '#ff3333';
+    else if (team.teamFouls >= 4) tfEl.style.color = '#ffa500';
+    else tfEl.style.color = 'white';
+
+    // Bonus Display
+    const bEl = document.getElementById(`bonus-${prefix}`);
+    if (team.teamFouls >= 5) {
+      bEl.style.display = 'block'; 
+      bEl.textContent = team.teamFouls >= 7 ? 'DBL BONUS' : 'BONUS'; 
+      bEl.style.color = team.teamFouls >= 7 ? '#ff3333' : '#ffa500';
+    } else {
+      bEl.style.display = 'none';
+    }
+
+    // Timeouts Pips (Max 3 in FIBA/NBA standard)
+    const pipsContainer = document.getElementById(`pips-${prefix}`);
+    pipsContainer.innerHTML = '';
+    const maxTimeouts = 3; // ปรับตามกฎการแข่งขัน
+    for(let i=0; i < maxTimeouts; i++) {
+      const pip = document.createElement('div');
+      pip.className = 'pip';
+      if (i < team.timeouts) {
+          pip.style.background = team.color;
+          pip.style.boxShadow = `0 0 10px ${team.color}`;
+      }
+      pipsContainer.appendChild(pip);
+    }
   }
 
   function render(s) {
-    var A = s.teamA, B = s.teamB;
+    updateTeam('a', s.teamA, s.possession === 'teamA');
+    updateTeam('b', s.teamB, s.possession === 'teamB');
 
-    // ── Team A ──
-    document.getElementById('name-a').textContent   = A.name;
-    document.getElementById('lbl-a').style.color    = A.color;
-    document.getElementById('cb-a').style.background= A.color;
-    document.getElementById('fouls-a').textContent  = A.fouls;
-    document.getElementById('to-a').textContent     = A.timeouts;
-    document.getElementById('fw-a').style.display   = A.fouls >= 5 ? 'block' : 'none';
-    var sa = document.getElementById('score-a');
-    if (prev && prev.teamA.score !== A.score) bump('score-a');
-    sa.textContent = A.score;
-    sa.style.color = A.color;
+    // Main Clock
+    const mainEl = document.getElementById('main-time');
+    mainEl.textContent = formatMain(s.clockTenths);
+    mainEl.className = s.clockTenths === 0 ? 'expired' : (s.isRunning ? 'running' : '');
 
-    // ── Team B ──
-    document.getElementById('name-b').textContent   = B.name;
-    document.getElementById('lbl-b').style.color    = B.color;
-    document.getElementById('cb-b').style.background= B.color;
-    document.getElementById('fouls-b').textContent  = B.fouls;
-    document.getElementById('to-b').textContent     = B.timeouts;
-    document.getElementById('fw-b').style.display   = B.fouls >= 5 ? 'block' : 'none';
-    var sb = document.getElementById('score-b');
-    if (prev && prev.teamB.score !== B.score) bump('score-b');
-    sb.textContent = B.score;
-    sb.style.color = B.color;
+    // Shot Clock Colors
+    const shotEl = document.getElementById('shot-time');
+    shotEl.textContent = formatShot(s.shotClockTenths);
+    if (s.shotClockTenths <= 50 && s.shotClockTenths > 0) shotEl.style.color = '#ff3333';
+    else if (s.shotClockTenths <= 100 && s.shotClockTenths > 0) shotEl.style.color = '#ffa500';
+    else shotEl.style.color = 'white';
 
-    // ── Clock ──
-    var cd = document.getElementById('clock-display');
-    cd.textContent = fmt(s.clockSeconds);
-    cd.className   = s.isRunning ? 'live' : '';
-    document.getElementById('live-dot').className = s.isRunning ? 'live' : '';
-    document.getElementById('live-lbl').className = s.isRunning ? 'live' : '';
-    document.getElementById('live-lbl').textContent = s.isRunning ? 'LIVE' : 'PAUSED';
-
-    // ── Quarter ──
-    var q = s.quarter;
-    document.getElementById('quarter-lbl').textContent = q > 4 ? 'OT'+(q-4) : 'Q'+q;
-
-    prev = s;
+    // Quarter Label
+    const qText = s.quarter > 4 ? `OT${s.quarter-4}` : `QUARTER ${s.quarter}`;
+    document.getElementById('q-label').textContent = qText;
+    
+    lastData = s;
   }
 
-  // ── Polling fallback (ทำงานเสมอ เพื่อให้ scoreboard แสดงแม้ socket ล้มเหลว) ──
-  function poll() {
-    fetch('http://localhost:3001/api/state')
-      .then(function(r){ return r.json(); })
-      .then(function(s){ render(s); document.getElementById('dbg').textContent = '● poll'; })
-      .catch(function(){ document.getElementById('dbg').textContent = '✗ server?'; });
-  }
-
-  // poll ทุก 500ms เป็น fallback
-  var pollTimer = setInterval(poll, 500);
-  poll(); // poll ทันทีตอนโหลด
-
-  // ── Socket.io (real-time ถ้าเชื่อมได้) ──
-  try {
-    var socket = io('http://localhost:3001', {
-      transports: ['polling', 'websocket'],
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 5000,
-      timeout: 8000
-    });
-
-    socket.on('connect', function() {
-      // เมื่อ socket เชื่อมได้ หยุด poll เพื่อประหยัด
-      clearInterval(pollTimer);
-      document.getElementById('dbg').textContent = '● socket';
-    });
-
-    socket.on('stateUpdate', function(s) { render(s); });
-
-    socket.on('disconnect', function() {
-      // ถ้า socket หลุด ให้ fallback กลับมา poll
-      pollTimer = setInterval(poll, 500);
-      document.getElementById('dbg').textContent = '○ reconnecting';
-    });
-  } catch(e) {
-    // socket.io ไม่โหลด — ใช้ polling อย่างเดียว
-    document.getElementById('dbg').textContent = '● poll-only';
-  }
+  // Socket Connection
+  const socket = io('http://localhost:3001');
+  socket.on('stateUpdate', render);
+  
+  // Fallback Polling
+  setInterval(() => {
+    if (!socket.connected) {
+      fetch('http://localhost:3001/api/state')
+        .then(r => r.json())
+        .then(render)
+        .catch(e => {});
+    }
+  }, 500);
 </script>
 </body>
 </html>
