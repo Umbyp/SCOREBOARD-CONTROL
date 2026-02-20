@@ -9,57 +9,41 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 // ─── Game State ────────────────────────────────────────────────────────────
+// เวลาเก็บเป็น "tenths" (1 = 0.1 วินาที)
+// shotClockTenths: 0–240 (24.0 วินาที)
+// clockTenths: เช่น 6000 = 10:00
+
 let gameState = {
   teamA: { name: "HOME", score: 0, fouls: 0, teamFouls: 0, timeouts: 7, color: "#FF6B35" },
   teamB: { name: "AWAY", score: 0, fouls: 0, teamFouls: 0, timeouts: 7, color: "#00D4FF" },
   quarter: 1,
-  clockSeconds: 600,
+  clockTenths: 6000,   // 10:00 = 6000 tenths
   isRunning: false,
-  shotClock: 24,
+  shotClockTenths: 240, // 24.0s = 240 tenths
   shotRunning: false,
+  possession: null,    // "teamA" | "teamB" | null
+  jumpBall: false,
 };
 
+let clockInterval = null;
 let shotInterval = null;
 
-function startShot() {
-  if (shotInterval) return;
-  shotInterval = setInterval(() => {
-    if (gameState.shotClock <= 0) {
-      stopShot();
-      gameState.shotRunning = false;
-      broadcast();
-      return;
-    }
-    gameState.shotClock -= 1;
-    broadcast();
-  }, 1000);
-}
-
-function stopShot() {
-  clearInterval(shotInterval);
-  shotInterval = null;
-}
-
-let clockInterval = null;
-
-// ─── Clock Logic (Server-Side) ─────────────────────────────────────────────
+// ── Game Clock (tick ทุก 100ms) ───────────────────────────────────────────
 function startClock() {
   if (clockInterval) return;
   clockInterval = setInterval(() => {
-    if (gameState.clockSeconds <= 0) {
+    if (gameState.clockTenths <= 0) {
       stopClock();
       gameState.isRunning = false;
       broadcast();
       return;
     }
-    gameState.clockSeconds -= 1;
+    gameState.clockTenths = Math.max(0, gameState.clockTenths - 2);
     broadcast();
-  }, 1000);
+  }, 200);
 }
 
 function stopClock() {
@@ -67,60 +51,72 @@ function stopClock() {
   clockInterval = null;
 }
 
+// ── Shot Clock (tick ทุก 100ms) ───────────────────────────────────────────
+function startShot() {
+  if (shotInterval) return;
+  shotInterval = setInterval(() => {
+    if (gameState.shotClockTenths <= 0) {
+      stopShot();
+      gameState.shotRunning = false;
+      broadcast();
+      return;
+    }
+    gameState.shotClockTenths = Math.max(0, gameState.shotClockTenths - 2);
+    broadcast();
+  }, 200);
+}
+
+function stopShot() {
+  clearInterval(shotInterval);
+  shotInterval = null;
+}
+
 function broadcast() {
   io.emit("stateUpdate", gameState);
 }
 
-// ─── CORS (สำคัญสำหรับ OBS browser) ─────────────────────────────────────────
+// ─── CORS ──────────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "*");
   next();
 });
 
-// ─── Serve Overlay HTML ────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "public")));
+app.get("/overlay", (req, res) => res.sendFile(path.join(__dirname, "public", "overlay.html")));
+app.get("/api/state", (req, res) => res.json(gameState));
 
-app.get("/overlay", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "overlay.html"));
-});
-
-// ─── REST API: Polling fallback สำหรับ OBS ────────────────────────────────
-app.get("/api/state", (req, res) => {
-  res.json(gameState);
-});
-
-// ─── Socket.io Events ─────────────────────────────────────────────────────
+// ─── Socket Events ────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
   console.log("✅ Client connected:", socket.id);
-
-  // ส่ง state ปัจจุบันให้ client ที่เพิ่ง connect
   socket.emit("stateUpdate", gameState);
 
-  // รับ action จาก Control Panel
   socket.on("action", (data) => {
     const { type, team, value } = data;
 
     switch (type) {
+
       // ── คะแนน ──
       case "score":
         gameState[team].score = Math.max(0, gameState[team].score + value);
         break;
 
-      // ── ฟาวล์ ──
+      // ── Personal Foul ──
       case "foul":
-        gameState[team].fouls = Math.max(
-          0,
-          Math.min(10, gameState[team].fouls + value)
-        );
+        gameState[team].fouls = Math.max(0, Math.min(6, gameState[team].fouls + value));
         break;
 
-      // ── ไทม์เอาต์ ──
+      // ── Team Foul ──
+      case "teamFoul":
+        gameState[team].teamFouls = Math.max(0, Math.min(10, gameState[team].teamFouls + value));
+        break;
+      case "teamFoulReset":
+        gameState[team].teamFouls = 0;
+        break;
+
+      // ── Timeout ──
       case "timeout":
-        gameState[team].timeouts = Math.max(
-          0,
-          Math.min(5, gameState[team].timeouts + value)
-        );
+        gameState[team].timeouts = Math.max(0, Math.min(7, gameState[team].timeouts + value));
         break;
 
       // ── ชื่อทีม ──
@@ -128,7 +124,17 @@ io.on("connection", (socket) => {
         gameState[team].name = value;
         break;
 
-      // ── นาฬิกา start/stop ──
+      // ── Possession / Jump Ball ──
+      case "possession":
+        gameState.possession = value; // "teamA" | "teamB" | null
+        gameState.jumpBall = false;
+        break;
+      case "jumpBall":
+        gameState.jumpBall = !gameState.jumpBall;
+        if (gameState.jumpBall) gameState.possession = null;
+        break;
+
+      // ── Game Clock ──
       case "clockToggle":
         if (gameState.isRunning) {
           stopClock();
@@ -138,27 +144,22 @@ io.on("connection", (socket) => {
           gameState.isRunning = true;
         }
         break;
-
-      // ── reset นาฬิกา ──
       case "clockReset":
         stopClock();
         gameState.isRunning = false;
-        gameState.clockSeconds = value || 600;
+        gameState.clockTenths = value; // value ส่งมาเป็น tenths
         break;
-
-      // ── ตั้งเวลา ──
       case "clockSet":
         stopClock();
         gameState.isRunning = false;
-        gameState.clockSeconds = value;
+        gameState.clockTenths = value;
+        break;
+      case "clockAdjust":
+        // ปรับ +/- tenths (เช่น +10 = +1 วินาที)
+        gameState.clockTenths = Math.max(0, gameState.clockTenths + value);
         break;
 
-      // ── เปลี่ยน Quarter ──
-      case "quarter":
-        gameState.quarter = value;
-        break;
-
-      // ── Shot Clock toggle ──
+      // ── Shot Clock ──
       case "shotClockToggle":
         if (gameState.shotRunning) {
           stopShot();
@@ -168,25 +169,23 @@ io.on("connection", (socket) => {
           gameState.shotRunning = true;
         }
         break;
-
-      // ── Shot Clock set (24 or 14) → reset + auto-start ──
       case "shotClockSet":
         stopShot();
-        gameState.shotClock = value;
+        gameState.shotClockTenths = value * 10; // value = 24 or 14 → tenths
         gameState.shotRunning = true;
         startShot();
         break;
-
-      // ── Team Fouls ──
-      case "teamFoul":
-        gameState[team].teamFouls = Math.max(0, Math.min(10, gameState[team].teamFouls + value));
+      case "shotClockStop":
+        stopShot();
+        gameState.shotRunning = false;
         break;
 
-      case "teamFoulReset":
-        gameState[team].teamFouls = 0;
+      // ── Quarter ──
+      case "quarter":
+        gameState.quarter = value;
         break;
 
-      // ── Reset ทั้งเกม ──
+      // ── Reset ──
       case "resetGame":
         stopClock();
         stopShot();
@@ -194,10 +193,12 @@ io.on("connection", (socket) => {
           teamA: { name: gameState.teamA.name, score: 0, fouls: 0, teamFouls: 0, timeouts: 7, color: "#FF6B35" },
           teamB: { name: gameState.teamB.name, score: 0, fouls: 0, teamFouls: 0, timeouts: 7, color: "#00D4FF" },
           quarter: 1,
-          clockSeconds: 600,
+          clockTenths: 6000,
           isRunning: false,
-          shotClock: 24,
+          shotClockTenths: 240,
           shotRunning: false,
+          possession: null,
+          jumpBall: false,
         };
         break;
     }
@@ -205,19 +206,15 @@ io.on("connection", (socket) => {
     broadcast();
   });
 
-  socket.on("disconnect", () => {
-    console.log("❌ Client disconnected:", socket.id);
-  });
+  socket.on("disconnect", () => console.log("❌ Client disconnected:", socket.id));
 });
 
-// ─── Start Server ──────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3001;
+// ─── Start ─────────────────────────────────────────────────────────────────
+const PORT = 3001;
 server.listen(PORT, () => {
-  console.log("");
-  console.log("🏀 Basketball Scoreboard Server");
+  console.log("\n🏀 Basketball Scoreboard Server");
   console.log("================================");
   console.log(`🖥️  Control Panel : http://localhost:5173`);
   console.log(`📺 OBS Overlay   : http://localhost:${PORT}/overlay`);
-  console.log(`🔌 Socket Server : http://localhost:${PORT}`);
-  console.log("");
+  console.log(`🔌 Socket Server : http://localhost:${PORT}\n`);
 });
