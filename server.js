@@ -9,13 +9,20 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
+
+// ✅ FIX 1: ใช้ env var แทน hardcode URL
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",")
+  : ["http://localhost:5173"];
+
 const io = new Server(server, {
   cors: {
-    origin: ["https://bangmod-score-live.vercel.app", "http://localhost:5173"],
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+  },
 });
+
 let gameState = {
   teamA: { name: "HOME", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#FF6B35" },
   teamB: { name: "AWAY", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#00D4FF" },
@@ -28,7 +35,8 @@ let gameState = {
   possession: null,
   jumpBall: false,
 };
-  broadcast(); 
+
+// ✅ FIX 2: ลบ broadcast() ที่เรียกก่อน server พร้อมออก
 
 let clockInterval = null;
 let shotInterval = null;
@@ -43,11 +51,10 @@ function startClock() {
     const tenths = (now - lastClockTick) / 100;
     lastClockTick = now;
     gameState.clockTenths = Math.max(0, gameState.clockTenths - tenths);
-    
-    if (gameState.clockTenths <= 0) { 
-      stopClock(); 
-      gameState.isRunning = false; 
-      // 🏀 เมื่อหมดเวลาหลัก บังคับหยุด Shot Clock ด้วย
+
+    if (gameState.clockTenths <= 0) {
+      stopClock();
+      gameState.isRunning = false;
       stopShot();
       gameState.shotRunning = false;
     }
@@ -72,11 +79,17 @@ function stopShot() { clearInterval(shotInterval); shotInterval = null; }
 
 function broadcast() { io.emit("stateUpdate", gameState); }
 
+// ✅ FIX 3: รวม CORS middleware เป็นอันเดียว ลบของซ้ำออก
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://bangmod-score-live.vercel.app");
+  const origin = req.headers.origin;
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
   res.header("Access-Control-Allow-Private-Network", "true");
+  res.header("Access-Control-Allow-Headers", "Content-Type");
   next();
 });
+
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/overlay", (req, res) => res.sendFile(path.join(__dirname, "public", "overlay.html")));
 app.get("/api/state", (req, res) => res.json(gameState));
@@ -120,20 +133,17 @@ io.on("connection", (socket) => {
         if (gameState.jumpBall) gameState.possession = null;
         break;
 
-      // 🏀 --- Time Management Logic --- 🏀
       case "clockToggle":
-        if (gameState.isRunning) { 
-          stopClock(); 
-          gameState.isRunning = false; 
-          // เมื่อหยุดเวลาหลัก ต้องบังคับหยุด Shot Clock ด้วยเสมอ
+        if (gameState.isRunning) {
+          stopClock();
+          gameState.isRunning = false;
           if (gameState.shotRunning) {
             stopShot();
             gameState.shotRunning = false;
           }
-        } else { 
-          startClock(); 
-          gameState.isRunning = true; 
-          // เมื่อเริ่มเวลาหลัก ถ้า Shot Clock ยังมีเวลาเหลือ ให้มันเริ่มเดินตามอัตโนมัติ
+        } else {
+          startClock();
+          gameState.isRunning = true;
           if (gameState.shotClockTenths > 0) {
             startShot();
             gameState.shotRunning = true;
@@ -143,41 +153,35 @@ io.on("connection", (socket) => {
       case "clockSet":
         stopClock();
         gameState.isRunning = false;
-        // ถ้าไปตั้งเวลาหลักใหม่ ให้หยุด Shot clock ด้วยเผื่อความชัวร์ (สถานะลูกตาย)
         stopShot();
         gameState.shotRunning = false;
-        
         gameState.clockTenths = value;
         gameState.lastClockSet = value;
         break;
       case "clockReset":
         stopClock();
         gameState.isRunning = false;
-        // รีเซ็ตเวลาหลัก = ลูกตาย หยุด Shot Clock ด้วย
         stopShot();
         gameState.shotRunning = false;
-
         gameState.clockTenths = gameState.lastClockSet;
         break;
       case "clockAdjust":
         gameState.clockTenths = Math.max(0, gameState.clockTenths + value);
         break;
       case "shotClockToggle":
-        if (gameState.shotRunning) { 
-          stopShot(); 
-          gameState.shotRunning = false; 
-        } else { 
-          // ป้องกันไม่ให้กดเริ่ม Shot Clock แบบแมนนวล ถ้า Game Clock ยังไม่เดิน (ตามกฎบาส)
+        if (gameState.shotRunning) {
+          stopShot();
+          gameState.shotRunning = false;
+        } else {
           if (gameState.isRunning) {
-            startShot(); 
-            gameState.shotRunning = true; 
+            startShot();
+            gameState.shotRunning = true;
           }
         }
         break;
       case "shotClockSet":
         stopShot();
         gameState.shotClockTenths = value * 10;
-        // จะให้ Shot Clock เริ่มเดินอัตโนมัติ ก็ต่อเมื่อเวลาหลักกำลังเดินอยู่เท่านั้น (เช่น รีบาวด์ได้ตอนเวลาเดินอยู่)
         if (gameState.isRunning) {
           gameState.shotRunning = true;
           startShot();
@@ -188,13 +192,11 @@ io.on("connection", (socket) => {
       case "shotClockAdjust":
         gameState.shotClockTenths = Math.max(0, gameState.shotClockTenths + value);
         break;
-      // ---------------------------------
 
       case "quarter":
         gameState.quarter = value;
         break;
       case "newQuarter":
-        // value = quarter number ใหม่
         stopClock();
         stopShot();
         gameState.quarter = value;
@@ -213,29 +215,23 @@ io.on("connection", (socket) => {
         stopClock();
         stopShot();
         gameState = {
-          teamA: { name: gameState.teamA.name, score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 7, color: gameState.teamA.color },
-          teamB: { name: gameState.teamB.name, score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 7, color: gameState.teamB.color },
+          teamA: { name: gameState.teamA.name, score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: gameState.teamA.color },
+          teamB: { name: gameState.teamB.name, score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: gameState.teamB.color },
           quarter: 1, clockTenths: 6000, lastClockSet: 6000, isRunning: false,
           shotClockTenths: 240, shotRunning: false, possession: null, jumpBall: false,
         };
         break;
     }
+    broadcast();
   });
-  broadcast();
+
   socket.on("disconnect", () => console.log("❌ Disconnected:", socket.id));
 });
 
-// 1. ปรับการตั้งค่า CORS (ใส่ URL ของ Vercel ของคุณ)
-// 2. เพิ่ม Middleware นี้เพื่อแก้ปัญหา Chrome บล็อก Localhost (ถ้ายังเทสผสมกันอยู่)
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Private-Network", "true");
-  next();
-});
-
-// 3. ปรับการฟัง Port ให้รองรับระบบ Cloud
-const PORT = process.env.PORT || 3001; // Render จะส่งค่า process.env.PORT มาให้
+// ✅ FIX 4: ใช้ process.env.PORT สำหรับ Render
+const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
- console.log(`\n🏀 Basketball Scoreboard`);
+  console.log(`\n🏀 Basketball Scoreboard`);
   console.log(`========================`);
   console.log(`🖥️  Control : http://localhost:5173`);
   console.log(`📺 Overlay  : http://localhost:${PORT}/overlay\n`);

@@ -1,7 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
-const socket = io("https://scoreboard-control.onrender.com");
+// ✅ FIX 1: ใช้ env variable แทน hardcode URL
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
+
+// ✅ FIX 2: เพิ่ม reconnection options รองรับ Render free tier ที่ sleep
+const socket = io(SOCKET_URL, {
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity,
+});
 
 // ─── Sounds (Preloaded) ──────────────────────────────────────────────────────
 const hornAudio = typeof Audio !== "undefined" ? new Audio("https://actions.google.com/sounds/v1/alarms/air_horn.ogg") : null;
@@ -198,14 +206,12 @@ function TeamCard({ team, teamKey }) {
 function CenterCol({ state }) {
   const { clockTenths, isRunning, quarter, shotClockTenths, shotRunning, possession, jumpBall } = state;
   const shotSec = shotClockTenths / 10;
-  
-  // 🏀 ปรับไม่ให้มีการเตือนหรือเปลี่ยนสีเมื่อ Shot Clock เป็น 0
+
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const shotWarn = shotSec <= 10 && shotClockTenths > 0;
   const shotColor = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#00E87A";
-  
+
   const gameTimeUp = clockTenths === 0;
-  
   const clockDecimal = clockTenths <= 600;
   const qLabel = quarter > 4 ? `OT${quarter - 4}` : `Q${quarter}`;
 
@@ -218,7 +224,6 @@ function CenterCol({ state }) {
 
       {/* ══ SHOT CLOCK ══ */}
       <div style={{
-        // 🏀 เอาสีแดงและการกระพริบตอนหมดเวลาออก
         background: shotUrgent ? "linear-gradient(160deg,#1c0505,#0a0a14)" : "rgba(0,0,0,0.35)",
         border: `2px solid ${shotUrgent ? "rgba(255,40,40,0.55)" : shotWarn ? "rgba(255,165,0,0.4)" : "rgba(255,255,255,0.08)"}`,
         borderRadius: 20, padding: "16px 16px 12px",
@@ -261,9 +266,9 @@ function CenterCol({ state }) {
       </div>
 
       {/* ══ GAME CLOCK ══ */}
-      <div style={{ 
-        background: gameTimeUp ? "rgba(255,0,0,0.35)" : "rgba(0,0,0,0.3)", 
-        border: gameTimeUp ? "2px solid #FF0000" : "1px solid rgba(255,215,0,0.15)", 
+      <div style={{
+        background: gameTimeUp ? "rgba(255,0,0,0.35)" : "rgba(0,0,0,0.3)",
+        border: gameTimeUp ? "2px solid #FF0000" : "1px solid rgba(255,215,0,0.15)",
         borderRadius: 18, padding: "14px 14px",
         boxShadow: gameTimeUp ? "0 0 50px rgba(255,0,0,0.5)" : "none",
         animation: gameTimeUp ? "flashRed 0.5s infinite" : "none",
@@ -339,12 +344,11 @@ function OverlayPreview({ state }) {
   const { teamA, teamB, quarter, clockTenths, isRunning, shotClockTenths, shotRunning, possession, jumpBall } = state;
   const qLabel = quarter > 4 ? `OT${quarter - 4}` : `Q${quarter}`;
   const shotSec = shotClockTenths / 10;
-  
-  // 🏀 ปรับการแสดงผลใน Overlay ให้เหมือนกัน: ไม่มีสีแดง/กระพริบตอน 0
+
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const shotWarn = shotSec <= 10 && shotClockTenths > 0;
   const shotCol = shotUrgent ? "#FF3333" : shotWarn ? "#FF9900" : "#FFFFFF";
-  
+
   const gameTimeUp = clockTenths === 0;
   const F = "'Bebas Neue',Impact,sans-serif";
 
@@ -364,7 +368,6 @@ function OverlayPreview({ state }) {
               {bonus && <div style={{ fontFamily: F, fontSize: 11, color: bonus.color, letterSpacing: "0.12em", background: `${bonus.color}18`, padding: "1px 6px", borderRadius: 3, border: `1px solid ${bonus.color}44`, animation: team.teamFouls >= 10 ? "pulse 1s infinite" : "none" }}>{team.teamFouls >= 10 ? "●●" : "●"} {bonus.text}</div>}
             </div>
             <div style={{ fontFamily: F, fontSize: 28, letterSpacing: "0.15em", lineHeight: 1, color: "white", fontWeight: 900, textAlign: flip ? "right" : "left" }}>{team.name}</div>
-            
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexDirection: flip ? "row-reverse" : "row" }}>
               <div style={{ display: "flex", gap: 3 }}>
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -377,7 +380,6 @@ function OverlayPreview({ state }) {
                 ))}
               </div>
             </div>
-
           </div>
           <div style={{ fontFamily: F, fontSize: 72, fontWeight: 900, lineHeight: 1, color: team.color, textShadow: `0 0 40px ${team.color}55`, letterSpacing: "-0.02em" }}>{team.score}</div>
         </div>
@@ -387,7 +389,6 @@ function OverlayPreview({ state }) {
 
   return (
     <div style={{ borderRadius: 12, overflow: "hidden", background: "#07070f", border: "1px solid rgba(255,255,255,0.08)", boxShadow: "0 4px 40px rgba(0,0,0,0.6)" }}>
-      
       <div style={{ display: "flex", height: 110 }}>
         <TeamBlock team={teamA} tKey="teamA" flip={false} />
         <div style={{ width: 180, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, background: gameTimeUp ? "rgba(200,0,0,0.5)" : "rgba(0,0,0,0.7)", borderLeft: "1px solid rgba(255,255,255,0.06)", borderRight: "1px solid rgba(255,255,255,0.06)", transition: "background 0.3s" }}>
@@ -418,7 +419,6 @@ function OverlayPreview({ state }) {
           <span>TIMEOUTS: <span style={{ color: "white" }}>{teamB.timeouts}</span></span>
         </div>
       </div>
-
     </div>
   );
 }
@@ -447,31 +447,27 @@ export default function App() {
     prevShotClock.current = state.shotClockTenths;
   }, [state.clockTenths, state.shotClockTenths]);
 
-  // Keyboard Shortcuts (อัปเดตใหม่ แก้ปัญหาลืมเปลี่ยนภาษา)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // ยกเว้นตอนกำลังพิมพ์ชื่อทีม
       if (e.target.tagName === "INPUT") return;
-      
-      // ใช้ e.code แทน e.key เพื่อให้กดติดแม้แป้นพิมพ์จะเป็นภาษาไทย
       switch(e.code) {
-        case "Space": // Spacebar = Start/Stop Game Clock
-          e.preventDefault(); 
+        case "Space":
+          e.preventDefault();
           send("clockToggle");
           break;
-        case "KeyC": // C (หรือ แ) = Start/Stop Shot Clock
+        case "KeyC":
           e.preventDefault();
           send("shotClockToggle");
           break;
-        case "KeyZ": // Z (หรือ ผ) = Reset 24s
+        case "KeyZ":
           e.preventDefault();
           send("shotClockSet", null, 24);
           break;
-        case "KeyX": // X (หรือ ป) = Reset 14s
+        case "KeyX":
           e.preventDefault();
           send("shotClockSet", null, 14);
           break;
-        case "KeyH": // H (หรือ ห) = Manual Horn
+        case "KeyH":
           e.preventDefault();
           playHorn();
           break;
@@ -542,7 +538,7 @@ export default function App() {
         <div style={{ fontFamily: "'Bebas Neue',Impact,sans-serif", color: "rgba(255,255,255,0.17)", fontSize: 10, letterSpacing: "0.4em", marginBottom: 5 }}>▼ OBS OVERLAY PREVIEW</div>
         <OverlayPreview state={state} />
         <div style={{ fontFamily: "'Bebas Neue',Impact,sans-serif", color: "rgba(255,255,255,0.09)", fontSize: 10, textAlign: "center", marginTop: 4, letterSpacing: "0.12em" }}>
-          OBS Browser Source → http://localhost:3001/overlay | 1920 × 100px
+          OBS Browser Source → {SOCKET_URL.replace("http", "http")}/overlay | 1920 × 100px
         </div>
       </div>
 

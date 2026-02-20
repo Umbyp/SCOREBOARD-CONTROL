@@ -5,7 +5,6 @@
   <title>Professional Scoreboard Overlay</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@700&display=swap" rel="stylesheet" />
   <style>
-    /* Reset & Base */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 1920px; height: 200px;
@@ -25,12 +24,11 @@
       position: relative;
     }
 
-    /* Team Panels */
     .team-panel { flex: 1; display: flex; flex-direction: column; position: relative; }
     .top-strip { height: 6px; width: 100%; border-radius: 12px 12px 0 0; }
-    
+
     .team-inner {
-      flex: 1; display: flex; align-items: center; 
+      flex: 1; display: flex; align-items: center;
       padding: 10px 40px; gap: 30px;
     }
     #team-b-panel .team-inner { flex-direction: row-reverse; }
@@ -38,7 +36,6 @@
     .team-info { flex: 1; display: flex; flex-direction: column; }
     #team-b-panel .team-info { align-items: flex-end; }
 
-    /* Fouls & Possession Row */
     .meta-row { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
     #team-b-panel .meta-row { flex-direction: row-reverse; }
 
@@ -50,42 +47,38 @@
     }
     .foul-box span { font-size: 18px; color: #fff; margin-left: 6px; }
 
-    .possession { 
+    .possession {
       font-size: 14px; padding: 3px 10px; border-radius: 4px; font-weight: bold;
       background: rgba(255, 255, 255, 0.1); display: none;
       box-shadow: 0 0 15px currentColor;
     }
 
-    .bonus-tag { 
-      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 900; 
-      display: none; animation: pulse 1s infinite; 
+    .bonus-tag {
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 900;
+      display: none; animation: pulse 1s infinite;
     }
 
-    /* Names & Scores */
     .name { font-size: 48px; color: white; letter-spacing: 0.05em; line-height: 1; }
-    
-    .score { 
-      font-size: 100px; line-height: 0.9; font-weight: 900; 
+
+    .score {
+      font-size: 100px; line-height: 0.9; font-weight: 900;
       text-shadow: 0 0 30px rgba(0,0,0,0.5);
       transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
-    
-    /* Animation for score change */
-    .bump { 
-      transform: scale(1.2); 
+
+    .bump {
+      transform: scale(1.2);
       text-shadow: 0 0 40px currentColor;
     }
 
-    /* Timeouts Pips */
     .pips-row { display: flex; gap: 6px; margin-top: 10px; }
-    .pip { 
-        width: 22px; height: 6px; background: rgba(255,255,255,0.1); 
+    .pip {
+        width: 22px; height: 6px; background: rgba(255,255,255,0.1);
         border-radius: 2px; transition: background 0.4s ease;
     }
 
-    /* Center Section (Clock) */
     #clock-core {
-      width: 280px; 
+      width: 280px;
       background: rgba(255, 255, 255, 0.03);
       border-left: 1px solid rgba(255,255,255,0.1);
       border-right: 1px solid rgba(255,255,255,0.1);
@@ -93,11 +86,11 @@
       position: relative;
     }
 
-    #q-label { 
-      font-size: 16px; color: #FFD700; letter-spacing: 0.3em; 
+    #q-label {
+      font-size: 16px; color: #FFD700; letter-spacing: 0.3em;
       margin-bottom: 4px; font-weight: bold;
     }
-    
+
     #main-time { font-size: 58px; color: white; line-height: 1; font-variant-numeric: tabular-nums; }
     #main-time.running { color: #fff; text-shadow: 0 0 20px rgba(255,255,255,0.4); }
     #main-time.expired { color: #ff3333; animation: flash 0.5s infinite; }
@@ -108,10 +101,8 @@
     .shot-tag { font-size: 14px; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; }
     #shot-time { font-size: 48px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
 
-    /* Animations */
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-
   </style>
 </head>
 <body>
@@ -160,8 +151,20 @@
   </div>
 </div>
 
-<script src="https://scoreboard-control.onrender.com/socket.io/socket.io.js"></script>
+<!-- ✅ FIX: Load socket.io จาก origin เดียวกับ server (Render) แทน hardcode -->
 <script>
+  // กำหนด server URL ตรงนี้จุดเดียว ถ้าย้าย server ให้แก้ที่นี่อย่างเดียว
+  const SERVER_URL = "https://scoreboard-control.onrender.com";
+</script>
+<script id="socket-loader"></script>
+<script>
+  // โหลด socket.io จาก server จริง แล้วค่อย connect
+  const loaderScript = document.getElementById("socket-loader");
+  loaderScript.src = SERVER_URL + "/socket.io/socket.io.js";
+  loaderScript.onload = function() {
+    initOverlay();
+  };
+
   let lastData = null;
 
   function formatMain(tenths) {
@@ -170,7 +173,6 @@
       const totalSec = Math.floor(s / 10);
       return Math.floor(totalSec / 60).toString().padStart(2, '0') + ':' + (totalSec % 60).toString().padStart(2, '0');
     }
-    // สำหรับเวลาที่ต่ำกว่า 1 นาที แสดงทศนิยม
     return Math.floor(s / 10).toString().padStart(2, '0') + '.' + (s % 10);
   }
 
@@ -183,43 +185,38 @@
   function updateTeam(prefix, team, isPoss) {
     document.getElementById(`name-${prefix}`).textContent = team.name;
     const scoreEl = document.getElementById(`score-${prefix}`);
-    
-    // Check score change for animation
+
     if (lastData && lastData[`team${prefix.toUpperCase()}`].score !== team.score) {
       scoreEl.classList.add('bump');
       setTimeout(() => scoreEl.classList.remove('bump'), 400);
     }
-    
+
     scoreEl.textContent = team.score;
     scoreEl.style.color = team.color;
     document.getElementById(`strip-${prefix}`).style.background = team.color;
-    
-    // Possession Arrow with Glow
+
     const pEl = document.getElementById(`poss-${prefix}`);
     pEl.style.display = isPoss ? 'block' : 'none';
     pEl.style.color = team.color;
 
-    // Team Fouls Logic (Basketball Rules: 5 Fouls = Bonus)
     const tfEl = document.getElementById(`tf-${prefix}`);
     tfEl.textContent = team.teamFouls;
     if (team.teamFouls >= 5) tfEl.style.color = '#ff3333';
     else if (team.teamFouls >= 4) tfEl.style.color = '#ffa500';
     else tfEl.style.color = 'white';
 
-    // Bonus Display
     const bEl = document.getElementById(`bonus-${prefix}`);
     if (team.teamFouls >= 5) {
-      bEl.style.display = 'block'; 
-      bEl.textContent = team.teamFouls >= 7 ? 'DBL BONUS' : 'BONUS'; 
+      bEl.style.display = 'block';
+      bEl.textContent = team.teamFouls >= 7 ? 'DBL BONUS' : 'BONUS';
       bEl.style.color = team.teamFouls >= 7 ? '#ff3333' : '#ffa500';
     } else {
       bEl.style.display = 'none';
     }
 
-    // Timeouts Pips (Max 3 in FIBA/NBA standard)
     const pipsContainer = document.getElementById(`pips-${prefix}`);
     pipsContainer.innerHTML = '';
-    const maxTimeouts = 3; // ปรับตามกฎการแข่งขัน
+    const maxTimeouts = 3;
     for(let i=0; i < maxTimeouts; i++) {
       const pip = document.createElement('div');
       pip.className = 'pip';
@@ -235,38 +232,42 @@
     updateTeam('a', s.teamA, s.possession === 'teamA');
     updateTeam('b', s.teamB, s.possession === 'teamB');
 
-    // Main Clock
     const mainEl = document.getElementById('main-time');
     mainEl.textContent = formatMain(s.clockTenths);
     mainEl.className = s.clockTenths === 0 ? 'expired' : (s.isRunning ? 'running' : '');
 
-    // Shot Clock Colors
     const shotEl = document.getElementById('shot-time');
     shotEl.textContent = formatShot(s.shotClockTenths);
     if (s.shotClockTenths <= 50 && s.shotClockTenths > 0) shotEl.style.color = '#ff3333';
     else if (s.shotClockTenths <= 100 && s.shotClockTenths > 0) shotEl.style.color = '#ffa500';
     else shotEl.style.color = 'white';
 
-    // Quarter Label
     const qText = s.quarter > 4 ? `OT${s.quarter-4}` : `QUARTER ${s.quarter}`;
     document.getElementById('q-label').textContent = qText;
-    
+
     lastData = s;
   }
 
-  // Socket Connection
-  const socket = io('https://scoreboard-control.onrender.com');
-  socket.on('stateUpdate', render);
-  
-  // Fallback Polling
-  setInterval(() => {
-    if (!socket.connected) {
-      fetch('https://scoreboard-control.onrender.com/api/state')
-        .then(r => r.json())
-        .then(render)
-        .catch(e => {});
-    }
-  }, 500);
+  function initOverlay() {
+    // ✅ FIX: connect จาก origin เดียวกับ server + เพิ่ม reconnection
+    const socket = io(SERVER_URL, {
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: Infinity,
+    });
+
+    socket.on('stateUpdate', render);
+
+    // Fallback polling เมื่อ socket ไม่ได้เชื่อมต่อ
+    setInterval(() => {
+      if (!socket.connected) {
+        fetch(SERVER_URL + '/api/state')
+          .then(r => r.json())
+          .then(render)
+          .catch(() => {});
+      }
+    }, 500);
+  }
 </script>
 </body>
 </html>
