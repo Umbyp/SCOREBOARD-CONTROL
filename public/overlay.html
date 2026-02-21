@@ -2,481 +2,430 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Scoreboard Overlay</title>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet" />
+  <title>Basketball Overlay</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Barlow+Condensed:wght@500;700;800&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       width: 1920px; height: 1080px;
       overflow: hidden;
       background: transparent !important;
-      font-family: 'Oswald', sans-serif;
     }
 
-    /* ── Full-width bar pinned to bottom ── */
+    /* ── MAIN CONTAINER ── */
     #bar {
       position: absolute;
-      bottom: 0; left: 0;
+      top: 0; left: 0;
       width: 1920px;
-      height: 120px; /* ✅ ปรับความสูงเป็น 120px เพื่อไม่ให้ตรงกลางตกขอบ */
+      height: 110px; /* ✅ ปรับเป็น 110px ตรงตาม React */
       display: flex;
-      background: rgba(12, 14, 20, 0.95);
-      backdrop-filter: blur(8px);
-      border-top: 1px solid rgba(255,255,255,0.05);
+      align-items: stretch;
+      overflow: hidden;
+      background: linear-gradient(180deg,#0d0e15 0%,#06070d 100%);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-top: none; /* ปกติวางชิดขอบบน */
+      box-shadow: 0 6px 30px rgba(0,0,0,0.8);
     }
 
-    /* ── COLOR STRIPS (top edge, split per team) ── */
-    #strip-a {
-      position: absolute;
-      top: 0; left: 0; width: 760px; height: 4px;
-      background: var(--color-a, #FF6B35);
-    }
-    #strip-b {
-      position: absolute;
-      top: 0; right: 0; width: 760px; height: 4px;
-      background: var(--color-b, #00D4FF);
-    }
-
-    /* ── TEAM PANELS ── */
+    /* ── TEAM PANEL ── */
     .team-panel {
-      width: 760px;
-      height: 100%;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
       display: flex;
       align-items: center;
-      padding: 0 40px;
-      gap: 0;
-      flex-shrink: 0;
-      position: relative;
+      background: linear-gradient(180deg,#111219 0%,#080910 100%);
     }
-    
-    /* Background Gradients injected via JS */
-    #panel-a { flex-direction: row; }
-    #panel-b { flex-direction: row-reverse; }
 
-    /* ── TEAM INFO (name + stats) ── */
-    .team-info {
+    /* Top color strip */
+    .panel-accent {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: var(--tc);
+      z-index: 3;
+    }
+
+    /* Color flood from outer edge */
+    .panel-flood {
+      position: absolute; inset: 0;
+      z-index: 1;
+      pointer-events: none;
+    }
+    #panel-a .panel-flood {
+      background: linear-gradient(90deg, var(--fc) 0%, rgba(0,0,0,0) 45%);
+    }
+    #panel-b .panel-flood {
+      background: linear-gradient(270deg, var(--fc) 0%, rgba(0,0,0,0) 45%);
+    }
+
+    /* Grid micro-pattern */
+    .panel-grid {
+      position: absolute; inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 36px 36px;
+    }
+
+    .panel-inner {
+      position: relative; z-index: 5;
+      width: 100%; height: 100%;
+      display: flex;
+      align-items: center;
+    }
+    #panel-a .panel-inner { flex-direction: row;         padding: 0 14px 0 22px; }
+    #panel-b .panel-inner { flex-direction: row-reverse; padding: 0 22px 0 14px; }
+
+    /* ── SCORE ── */
+    .score-num {
+      font-family: 'Oswald', sans-serif;
+      font-size: 68px; /* ✅ ลดขนาดให้เท่า React */
+      font-weight: 700;
+      line-height: 1;
+      color: var(--tc);
+      letter-spacing: -0.02em;
+      min-width: 95px;
+      text-align: center;
+      flex-shrink: 0;
+      text-shadow: 0 0 28px var(--tc), 0 3px 6px rgba(0,0,0,0.8);
+    }
+
+    /* ── TEAM INFO ── */
+    .info {
+      flex: 1;
       display: flex;
       flex-direction: column;
       justify-content: center;
-      flex: 1;
-      position: relative;
-      z-index: 2;
+      padding: 0 12px;
     }
-    #panel-b .team-info { align-items: flex-end; }
+    #panel-b .info { align-items: flex-end; }
 
-    .team-name-row {
+    /* Name + poss */
+    .name-row {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 9px;
     }
-    #panel-b .team-name-row { flex-direction: row-reverse; }
+    #panel-b .name-row { flex-direction: row-reverse; }
 
-    .team-name {
-      font-size: 42px;
-      font-weight: 700;
-      color: #ffffff;
-      letter-spacing: 0.05em;
-      line-height: 1;
-      text-transform: uppercase;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-    }
-
-    /* Possession Arrow */
-    .poss-arrow {
-      font-size: 20px;
-      color: var(--team-color);
+    .poss {
+      font-family: 'Oswald', sans-serif;
+      font-size: 18px;
+      color: var(--tc);
+      text-shadow: 0 0 12px var(--tc);
       opacity: 0;
-      transition: opacity 0.2s, transform 0.2s;
-      text-shadow: 0 0 10px var(--team-color);
     }
-    .poss-arrow.visible { opacity: 1; }
-    #panel-a .poss-arrow { transform: translateX(-5px); }
-    #panel-a .poss-arrow.visible { transform: translateX(0); }
-    #panel-b .poss-arrow { transform: translateX(5px); }
-    #panel-b .poss-arrow.visible { transform: translateX(0); }
+    .poss.on { opacity: 1; }
 
-    /* ── FOULS ROW ── */
+    .tname {
+      font-family: 'Oswald', sans-serif;
+      font-size: 32px; /* ✅ ลดขนาดให้เท่า React */
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.06em;
+      line-height: 1;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+    }
+
+    /* Fouls */
     .fouls-row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-top: 2px;
+      gap: 7px;
+      margin-top: 4px;
     }
     #panel-b .fouls-row { flex-direction: row-reverse; }
 
-    .fouls-label {
-      font-size: 14px;
-      font-weight: 500;
-      letter-spacing: 0.08em;
-      color: rgba(255,255,255,0.45);
+    .fl {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px; font-weight: 800;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.4);
     }
-    .fouls-count {
-      font-size: 14px;
-      font-weight: 700;
+    .fl-n {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px; font-weight: 800;
       color: #fff;
     }
-    .foul-dots { display: flex; gap: 4px; }
-    .foul-dot {
+    .fdots { display: flex; gap: 4px; }
+    .fd {
       width: 8px; height: 8px; border-radius: 50%;
-      background: rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.1);
     }
-    .foul-dot.active { background: var(--team-color); box-shadow: 0 0 6px var(--team-color); }
+    .fd.on { background: var(--dc); box-shadow: 0 0 5px var(--dc); }
 
-    /* ── TIMEOUT PIPS ── */
-    .to-row {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin-top: 4px;
+    .btag {
+      display: none;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
+      padding: 1px 6px; border-radius: 3px;
     }
-    #panel-b .to-row { flex-direction: row-reverse; }
-    .to-pip {
-      width: 20px; height: 4px; border-radius: 2px;
-      background: rgba(255,255,255,0.12);
-    }
-    .to-pip.active {
-      background: var(--team-color);
-      box-shadow: 0 0 6px var(--team-color);
-    }
+    /* ✅ เอา animation ออก */
+    .btag.b { display:inline-block; color:#FFA500; background:rgba(255,165,0,0.15); border:1px solid rgba(255,165,0,0.5); }
+    .btag.d { display:inline-block; color:#FF3333; background:rgba(255,40,40,0.15);  border:1px solid rgba(255,40,40,0.5); }
 
-    /* ── SCORE ── */
-    .team-score {
-      font-size: 84px;
-      font-weight: 700;
-      line-height: 1;
-      color: var(--team-color);
-      min-width: 140px;
-      text-align: center;
-      flex-shrink: 0;
-      position: relative;
-      z-index: 2;
-      transition: transform 0.12s cubic-bezier(0.175,0.885,0.32,1.275), filter 0.15s;
+    /* Timeouts */
+    .torow { display: flex; gap: 5px; margin-top: 5px; }
+    #panel-b .torow { flex-direction: row-reverse; }
+    .tp {
+      width: 22px; height: 4px; border-radius: 2px;
+      background: rgba(255,255,255,0.1);
     }
-    .team-score.bump {
-      transform: scale(1.15);
-      filter: drop-shadow(0 0 20px var(--team-color));
-    }
+    .tp.on { background: var(--tc); box-shadow: 0 0 7px var(--tc); }
 
-    /* ── CENTER BLOCK ── */
+    /* ── CENTER ── */
     #center {
-      flex: 1;
+      width: 210px; /* ✅ Fix width 210px ตาม React */
+      flex-shrink: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 6px 0;
+      justify-content: space-between;
       position: relative;
+      background: linear-gradient(180deg, #0d0e15 0%, #06070d 100%);
+      border-left: 1px solid rgba(255,255,255,0.07);
+      border-right: 1px solid rgba(255,255,255,0.07);
+      z-index: 10;
+      padding: 10px 0;
     }
-
-    /* Quarter Text + Dots */
-    #quarter-container {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: -2px;
-    }
-    #quarter-label {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.25em;
-      color: #FFD700;
-      text-transform: uppercase;
-    }
-    #quarter-dots {
-      display: flex;
-      gap: 4px;
-    }
-    .q-dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      border: 1px solid rgba(255,215,0,0.5);
-      background: transparent;
-    }
-    .q-dot.active { background: #FFD700; box-shadow: 0 0 5px rgba(255,215,0,0.8); border: none; }
-
-    #main-clock {
-      font-size: 68px;
-      font-weight: 700;
-      line-height: 1;
-      color: #ffffff;
-      letter-spacing: 0.02em;
-      font-variant-numeric: tabular-nums;
-      transition: color 0.2s;
-    }
-    #main-clock.running { color: #ffffff; }
-    #main-clock.expired { color: #FF3333; animation: flash 0.5s infinite; }
-
-    /* Separated Shot Clock Box */
-    #shot-box {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 2px 12px;
-      margin-top: -2px;
-      box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
-    }
-    #shot-label {
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.15em;
-      color: rgba(255,255,255,0.4);
-    }
-    #shot-clock {
-      font-size: 36px;
-      font-weight: 700;
-      line-height: 1;
-      color: #ffffff;
-      font-variant-numeric: tabular-nums;
-      transition: color 0.15s;
-      min-width: 40px;
-      text-align: center;
-    }
-    #shot-box.warn   { border-color: rgba(255,165,0,0.3); }
-    #shot-clock.warn { color: #FFA500; }
-    #shot-box.urgent { border-color: rgba(255,51,51,0.4); background: rgba(255,51,51,0.1); }
-    #shot-clock.urgent { color: #FF3333; animation: urgentPulse 0.45s ease-in-out infinite; }
-
-    /* Bonus badge */
-    .bonus-tag {
-      display: none;
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      padding: 1px 6px;
-      border-radius: 3px;
-      animation: pulse 1s infinite;
-    }
-    .bonus-tag.bonus { display: inline-block; background: rgba(255,165,0,0.2); border: 1px solid rgba(255,165,0,0.6); color: #FFA500; }
-    .bonus-tag.dbl   { display: inline-block; background: rgba(255,40,40,0.2);  border: 1px solid rgba(255,40,40,0.6);  color: #FF3333; }
 
     /* Jump ball */
-    #jump-tag {
+    #jump {
       display: none;
-      position: absolute; right: 20px; top: 10px;
-      font-size: 12px; font-weight: 700; letter-spacing: 0.15em;
-      color: #FFD700; animation: pulse 0.8s infinite;
+      position: absolute; top: 10px; right: 8px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 10px; font-weight: 800; letter-spacing: 0.15em;
+      color: #FFD700;
+      /* ✅ เอา animation กระพริบออก */
     }
-    #jump-tag.visible { display: block; }
+    #jump.on { display: block; }
 
-    /* Dividers */
-    .divider {
-      width: 1px; height: 80px; /* ✅ ปรับความยาวเส้นคั่นเป็น 80px */
-      background: rgba(255,255,255,0.1);
-      flex-shrink: 0;
-      align-self: center;
+    /* Quarter */
+    #qlabel {
+      font-family: 'Oswald', sans-serif;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.25em;
+      color: #FFD700; line-height: 1;
     }
 
-    @keyframes pulse       { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    @keyframes flash       { 0%,100%{opacity:1} 50%{opacity:0.05} }
-    @keyframes urgentPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.93)} }
+    /* Main clock */
+    #mclock {
+      font-family: 'Oswald', sans-serif;
+      font-size: 48px; font-weight: 700;
+      line-height: 1;
+      color: #fff;
+      letter-spacing: 0.01em;
+      font-variant-numeric: tabular-nums;
+    }
+    /* ✅ เปลี่ยนแค่สี ไม่กระพริบ */
+    #mclock.running { text-shadow: 0 0 14px rgba(255,255,255,0.2); }
+    #mclock.expired { color: #FF2222; text-shadow: 0 0 24px rgba(255,20,20,0.9); }
+
+    /* Shot clock box */
+    #shotbox {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(0,0,0,0.3);
+      border: none; /* ✅ ไม่มีกรอบ */
+      border-radius: 7px;
+      padding: 2px 12px 2px;
+      margin-bottom: 6px;
+    }
+    #shotbox.urgent { background: rgba(255,20,20,0.15); }
+
+    #shotlbl {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.2em;
+      color: rgba(255,255,255,0.3);
+    }
+    #shotval {
+      font-family: 'Oswald', sans-serif;
+      font-size: 26px; font-weight: 700; line-height: 1;
+      color: #fff; font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+    /* ✅ เปลี่ยนแค่สี ไม่กระพริบ */
+    #shotval.warn   { color: #FFA500; }
+    #shotval.urgent { color: #FF2222; }
+
   </style>
 </head>
 <body>
 
 <div id="bar">
-  <div id="strip-a"></div>
-  <div id="strip-b"></div>
-
-  <div class="team-panel" id="panel-a" style="--team-color:#FF6B35;">
-    <div class="team-info">
-      <div class="team-name-row">
-        <div class="poss-arrow" id="poss-a">◀</div>
-        <div class="team-name" id="name-a">HOME</div>
+  <div class="team-panel" id="panel-a" style="--tc:#FF6B35; --dc:#FF6B35; --fc:rgba(255,107,53,0.22);">
+    <div class="panel-accent"></div>
+    <div class="panel-grid"></div>
+    <div class="panel-flood"></div>
+    <div class="panel-inner">
+      <div class="score-num" id="sc-a">0</div>
+      <div class="info">
+        <div class="name-row">
+          <div class="poss" id="poss-a">◀</div>
+          <div class="tname" id="nm-a">HOME</div>
+        </div>
+        <div class="fouls-row">
+          <span class="fl">FOULS</span>
+          <span class="fl-n" id="fn-a">0</span>
+          <div class="fdots" id="fd-a"></div>
+          <div class="btag" id="bt-a"></div>
+        </div>
+        <div class="torow" id="to-a"></div>
       </div>
-      <div class="fouls-row">
-        <span class="fouls-label">FOULS</span>
-        <span class="fouls-count" id="fouls-num-a">0</span>
-        <div class="foul-dots" id="fouls-a"></div>
-        <div class="bonus-tag" id="bonus-a"></div>
-      </div>
-      <div class="to-row" id="timeouts-a"></div>
     </div>
-    <div class="team-score" id="score-a">0</div>
   </div>
-
-  <div class="divider"></div>
 
   <div id="center">
-    <div id="jump-tag">⊕ JUMP</div>
-    <div id="quarter-container">
-      <div id="quarter-label">QUARTER 1</div>
-      <div id="quarter-dots">
-        <div class="q-dot active"></div><div class="q-dot"></div><div class="q-dot"></div><div class="q-dot"></div>
-      </div>
-    </div>
-    <div id="main-clock">10:00</div>
-    <div id="shot-box">
-      <span id="shot-label">SHOT</span>
-      <span id="shot-clock">24</span>
+    <div id="jump">⊕ JUMP</div>
+    <div id="qlabel">Q1</div>
+    <div id="mclock">10:00</div>
+    <div id="shotbox">
+      <span id="shotlbl">SHOT</span>
+      <span id="shotval">24</span>
     </div>
   </div>
 
-  <div class="divider"></div>
-
-  <div class="team-panel" id="panel-b" style="--team-color:#00D4FF;">
-    <div class="team-info">
-      <div class="team-name-row">
-        <div class="poss-arrow" id="poss-b">▶</div>
-        <div class="team-name" id="name-b">AWAY</div>
+  <div class="team-panel" id="panel-b" style="--tc:#00D4FF; --dc:#00D4FF; --fc:rgba(0,212,255,0.22);">
+    <div class="panel-accent"></div>
+    <div class="panel-grid"></div>
+    <div class="panel-flood"></div>
+    <div class="panel-inner">
+      <div class="score-num" id="sc-b">0</div>
+      <div class="info">
+        <div class="name-row">
+          <div class="poss" id="poss-b">▶</div>
+          <div class="tname" id="nm-b">AWAY</div>
+        </div>
+        <div class="fouls-row">
+          <span class="fl">FOULS</span>
+          <span class="fl-n" id="fn-b">0</span>
+          <div class="fdots" id="fd-b"></div>
+          <div class="btag" id="bt-b"></div>
+        </div>
+        <div class="torow" id="to-b"></div>
       </div>
-      <div class="fouls-row">
-        <span class="fouls-label">FOULS</span>
-        <span class="fouls-count" id="fouls-num-b">0</span>
-        <div class="foul-dots" id="fouls-b"></div>
-        <div class="bonus-tag" id="bonus-b"></div>
-      </div>
-      <div class="to-row" id="timeouts-b"></div>
     </div>
-    <div class="team-score" id="score-b">0</div>
   </div>
 </div>
 
 <script>
-  const SERVER_URL = "https://scoreboard-control.onrender.com";
+  // ✅ เปลี่ยน URL ตรงนี้ให้เป็น URL ของ Backend Render ที่คุณใช้งาน
+  const SERVER_URL = "https://scoreboard-control.onrender.com"; 
 </script>
-<script id="socket-loader"></script>
+<script id="sl"></script>
 <script>
-  document.getElementById("socket-loader").src = SERVER_URL + "/socket.io/socket.io.js";
-  document.getElementById("socket-loader").onload = initOverlay;
+  document.getElementById("sl").src = SERVER_URL + "/socket.io/socket.io.js";
+  document.getElementById("sl").onload = init;
 
-  let lastData = null;
-
-  // Helper: Hex to RGBA for gradient backgrounds
-  function hexToRgba(hex, alpha) {
-    let c = hex.substring(1).split('');
-    if(c.length === 3){ c = [c[0], c[0], c[1], c[1], c[2], c[2]]; }
-    c = '0x' + c.join('');
-    return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
-  }
-
-  function getQuarterLabel(q) {
-    return q <= 4 ? `QUARTER ${q}` : `OVERTIME ${q-4}`;
-  }
-
-  function formatMain(t) {
+  function fmtMain(t) {
     t = Math.max(0, t);
     if (t > 600) {
       const s = Math.floor(t/10);
-      return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+      return pad(Math.floor(s/60)) + ':' + pad(s%60);
     }
-    return String(Math.floor(t/10)).padStart(2,'0') + '.' + (t%10);
+    const s = Math.floor(t / 10);
+    const frac = Math.floor(t % 10);
+    return pad(s) + '.' + frac;
   }
-
-  function formatShot(t) {
-    if (t <= 0) return "0";
+  function fmtShot(t) {
+    t = Math.max(0, t);
     if (t > 100) return String(Math.ceil(t/10));
-    return (t/10).toFixed(1);
+    const s = Math.floor(t / 10);
+    const frac = Math.floor(t % 10);
+    return s + '.' + frac;
+  }
+  function pad(n) { return String(n).padStart(2,'0'); }
+  function qLabel(q) { return q <= 4 ? `Q${q}` : `OT${q-4}`; }
+
+  function hexToRgba(hex, a) {
+    let c = hex.replace('#','').split('');
+    if (c.length === 3) c = [c[0],c[0],c[1],c[1],c[2],c[2]];
+    const n = parseInt(c.join(''), 16);
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
   }
 
-  function updateTeam(prefix, team, isPoss) {
-    const panel   = document.getElementById(`panel-${prefix}`);
-    const scoreEl = document.getElementById(`score-${prefix}`);
-    const key     = `team${prefix.toUpperCase()}`;
+  function updateTeam(px, team, isPoss) {
+    const panel = document.getElementById(`panel-${px}`);
+    const sEl   = document.getElementById(`sc-${px}`);
 
-    panel.style.setProperty('--team-color', team.color);
-    document.getElementById(`strip-${prefix}`).style.background = team.color;
+    // Update CSS vars for colors
+    panel.style.setProperty('--tc', team.color);
+    panel.style.setProperty('--dc', team.teamFouls >= 5 ? '#FF3333' : team.color);
+    panel.style.setProperty('--fc', hexToRgba(team.color, 0.22));
 
-    // Background Gradient (Fades into center)
-    const bgColor = hexToRgba(team.color, 0.15);
-    panel.style.background = prefix === 'a' 
-      ? `linear-gradient(90deg, ${bgColor} 0%, transparent 70%)`
-      : `linear-gradient(270deg, ${bgColor} 0%, transparent 70%)`;
+    // Score
+    sEl.textContent = team.score;
 
-    // Score bump
-    if (lastData && lastData[key]?.score !== team.score) {
-      scoreEl.classList.add('bump');
-      setTimeout(() => scoreEl.classList.remove('bump'), 180);
-    }
-    scoreEl.textContent = team.score;
-
-    document.getElementById(`name-${prefix}`).textContent = team.name;
+    // Name
+    document.getElementById(`nm-${px}`).textContent = team.name;
 
     // Fouls
-    document.getElementById(`fouls-num-${prefix}`).textContent = team.teamFouls;
-    const dotColor = team.teamFouls >= 5 ? '#FF3333' : team.color;
-    const foulsEl  = document.getElementById(`fouls-${prefix}`);
-    foulsEl.innerHTML = '';
+    document.getElementById(`fn-${px}`).textContent = team.teamFouls;
+    const fd = document.getElementById(`fd-${px}`);
+    fd.innerHTML = '';
     for (let i = 0; i < 5; i++) {
       const d = document.createElement('div');
-      d.className = 'foul-dot' + (i < Math.min(team.teamFouls,5) ? ' active' : '');
-      d.style.setProperty('--team-color', dotColor);
-      foulsEl.appendChild(d);
+      d.className = 'fd' + (i < Math.min(team.teamFouls, 5) ? ' on' : '');
+      fd.appendChild(d);
     }
 
     // Bonus
-    const bonusEl = document.getElementById(`bonus-${prefix}`);
-    if (team.teamFouls >= 7) {
-      bonusEl.className = 'bonus-tag dbl'; bonusEl.textContent = 'PENALTY';
-    } else if (team.teamFouls >= 5) {
-      bonusEl.className = 'bonus-tag bonus'; bonusEl.textContent = 'BONUS';
-    } else {
-      bonusEl.className = 'bonus-tag';
-    }
+    const bt = document.getElementById(`bt-${px}`);
+    if (team.teamFouls >= 7) { bt.className='btag d'; bt.textContent='PENALTY'; }
+    else if (team.teamFouls >= 5) { bt.className='btag b'; bt.textContent='BONUS'; }
+    else { bt.className='btag'; }
 
     // Timeouts
-    const toEl = document.getElementById(`timeouts-${prefix}`);
-    toEl.innerHTML = '';
+    const to = document.getElementById(`to-${px}`);
+    to.innerHTML = '';
     for (let i = 0; i < 3; i++) {
       const p = document.createElement('div');
-      p.className = 'to-pip' + (i < team.timeouts ? ' active' : '');
-      toEl.appendChild(p);
+      p.className = 'tp' + (i < team.timeouts ? ' on' : '');
+      to.appendChild(p);
     }
 
-    // Possession Arrow
-    document.getElementById(`poss-${prefix}`).classList.toggle('visible', isPoss);
+    // Possession
+    document.getElementById(`poss-${px}`).classList.toggle('on', isPoss);
   }
 
   function render(s) {
-    if (!s) return;
+    if (!s || !s.teamA) return;
+    
     updateTeam('a', s.teamA, s.possession === 'teamA');
     updateTeam('b', s.teamB, s.possession === 'teamB');
 
     // Game clock
-    const clockEl = document.getElementById('main-clock');
-    clockEl.textContent = formatMain(s.clockTenths);
-    clockEl.className = s.clockTenths <= 0 ? 'expired' : s.isRunning ? 'running' : '';
+    const cl = document.getElementById('mclock');
+    cl.textContent = fmtMain(s.clockTenths);
+    cl.className = s.clockTenths <= 0 ? 'expired' : s.isRunning ? 'running' : '';
 
     // Shot clock
-    const shotBox = document.getElementById('shot-box');
-    const shotEl  = document.getElementById('shot-clock');
-    const shotSec = s.shotClockTenths / 10;
+    const sb = document.getElementById('shotbox');
+    const sv = document.getElementById('shotval');
+    const ss = s.shotClockTenths / 10;
+    sv.textContent = fmtShot(s.shotClockTenths);
     
-    shotEl.textContent = formatShot(s.shotClockTenths);
-    if (shotSec <= 5 && s.shotClockTenths > 0) {
-      shotBox.className = 'urgent';
-      shotEl.className = 'urgent';
-    } else if (shotSec <= 10 && s.shotClockTenths > 0) {
-      shotBox.className = 'warn';
-      shotEl.className = 'warn';
-    } else {
-      shotBox.className = '';
-      shotEl.className = '';
-    }
+    const isUrgent = ss <= 5 && s.shotClockTenths > 0;
+    const isWarn   = ss <= 10 && s.shotClockTenths > 0;
+    
+    sb.className = isUrgent ? 'urgent' : '';
+    sv.className = isUrgent ? 'urgent' : isWarn ? 'warn' : '';
 
-    // Quarter + Dots
-    document.getElementById('quarter-label').textContent = getQuarterLabel(s.quarter);
-    const qDots = document.getElementById('quarter-dots');
-    qDots.innerHTML = '';
-    const maxDots = s.quarter > 4 ? 1 : 4; // Use 1 dot for OT, or 4 for normal
-    for (let i = 1; i <= maxDots; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'q-dot' + (i <= (s.quarter > 4 ? 1 : s.quarter) ? ' active' : '');
-      qDots.appendChild(dot);
-    }
+    // Quarter
+    document.getElementById('qlabel').textContent = qLabel(s.quarter);
 
-    // Jump ball
-    document.getElementById('jump-tag').classList.toggle('visible', !!s.jumpBall);
-
-    lastData = s;
+    // Jump
+    document.getElementById('jump').classList.toggle('on', !!s.jumpBall);
   }
 
-  function initOverlay() {
-    const socket = io(SERVER_URL, { reconnection:true, reconnectionDelay:1000, reconnectionAttempts:Infinity });
-    socket.on('stateUpdate', render);
+  function init() {
+    const sk = io(SERVER_URL, { reconnection:true, reconnectionDelay:1000, reconnectionAttempts:Infinity });
+    sk.on('stateUpdate', render);
     setInterval(() => {
-      if (!socket.connected) fetch(SERVER_URL+'/api/state').then(r=>r.json()).then(render).catch(()=>{});
+      if (!sk.connected) fetch(SERVER_URL+'/api/state').then(r=>r.json()).then(render).catch(()=>{});
     }, 1000);
   }
 </script>

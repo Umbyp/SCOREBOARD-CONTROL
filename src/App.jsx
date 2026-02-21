@@ -1,34 +1,50 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
+// ✅ FIX 1: ใช้ env variable แทน hardcode URL
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 
+// ✅ FIX 2: เพิ่ม reconnection options รองรับ Render free tier ที่ sleep
 const socket = io(SOCKET_URL, {
   reconnection: true,
   reconnectionDelay: 1000,
   reconnectionAttempts: Infinity,
 });
 
-const hornAudio = typeof Audio !== "undefined" ? new Audio("https://actions.google.com/sounds/v1/alarms/air_horn.ogg") : null;
+// ─── Sounds ──────────────────────────────────────────────────────────────────
+const hornAudio   = typeof Audio !== "undefined" ? new Audio("https://actions.google.com/sounds/v1/alarms/air_horn.ogg") : null;
 const buzzerAudio = typeof Audio !== "undefined" ? new Audio("https://actions.google.com/sounds/v1/alarms/buzzer_alarm.ogg") : null;
+if (hornAudio)   { hornAudio.preload   = "auto"; hornAudio.volume   = 0.8; }
+if (buzzerAudio) { buzzerAudio.preload = "auto"; buzzerAudio.volume = 1.0; }
 
-if (hornAudio) hornAudio.preload = "auto";
-if (buzzerAudio) buzzerAudio.preload = "auto";
+// ✅ เปิดล็อค AudioContext ของ browser — ต้องเรียกจาก user interaction จริงๆ
+let _audioUnlocked = false;
+function unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  [hornAudio, buzzerAudio].forEach(a => {
+    if (!a) return;
+    a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+  });
+}
 
 const playHorn = () => {
   if (!hornAudio) return;
+  unlockAudio();
   hornAudio.currentTime = 0;
   hornAudio.volume = 0.8;
-  hornAudio.play().catch(e => console.log("คลิกที่หน้าจอก่อน", e));
+  hornAudio.play().catch(() => {});
 };
 
 const playBuzzer = () => {
   if (!buzzerAudio) return;
+  unlockAudio();
   buzzerAudio.currentTime = 0;
   buzzerAudio.volume = 1.0;
-  buzzerAudio.play().catch(e => console.log("คลิกที่หน้าจอก่อน", e));
+  buzzerAudio.play().catch(() => {});
 };
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function formatGameClock(tenths) {
   const t = Math.max(0, tenths);
   if (t > 600) {
@@ -54,17 +70,17 @@ function send(type, team, value) {
   socket.emit("action", { type, team, value });
 }
 
-// Helpers
 function hexToRgba(hex, alpha) {
-  let c = hex.substring(1).split('');
-  if(c.length === 3){ c = [c[0], c[0], c[1], c[1], c[2], c[2]]; }
-  c = '0x' + c.join('');
-  return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+  let c = hex.replace('#', '').split('');
+  if (c.length === 3) c = [c[0],c[0],c[1],c[1],c[2],c[2]];
+  const n = parseInt(c.join(''), 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;
 }
 
+// ─── Components ──────────────────────────────────────────────────────────────
 function BonusBadge({ teamFouls }) {
   if (teamFouls >= 10) return (
-    <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,40,40,0.2)", border: "1px solid rgba(255,40,40,0.5)", color: "#FF3333", fontFamily: "'Bebas Neue',Impact,sans-serif", fontSize: 11, letterSpacing: "0.12em", animation: "pulse 0.8s ease-in-out infinite" }}>
+    <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,40,40,0.2)", border: "1px solid rgba(255,40,40,0.5)", color: "#FF3333", fontFamily: "'Bebas Neue',Impact,sans-serif", fontSize: 11, letterSpacing: "0.12em" }}>
       ●● DBL BONUS
     </div>
   );
@@ -134,6 +150,7 @@ function ColorPicker({ teamKey, currentColor }) {
   );
 }
 
+// ─── Team Card ────────────────────────────────────────────────────────────────
 function TeamCard({ team, teamKey }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(team.name);
@@ -204,6 +221,7 @@ function TeamCard({ team, teamKey }) {
   );
 }
 
+// ─── Center Column ────────────────────────────────────────────────────────────
 function CenterCol({ state }) {
   const { clockTenths, isRunning, quarter, shotClockTenths, shotRunning, possession, jumpBall } = state;
   const shotSec = shotClockTenths / 10;
@@ -222,6 +240,7 @@ function CenterCol({ state }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+
       {/* ══ SHOT CLOCK ══ */}
       <div style={{
         background: shotUrgent ? "linear-gradient(160deg,#1c0505,#0a0a14)" : "rgba(0,0,0,0.35)",
@@ -232,8 +251,7 @@ function CenterCol({ state }) {
       }}>
         <div style={{ ...S({ fontSize: 11, letterSpacing: "0.5em" }), color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 2 }}>SHOT CLOCK</div>
         <div style={{ textAlign: "center", ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.85 }), color: shotColor,
-          textShadow: shotUrgent ? "0 0 50px rgba(255,30,30,0.9)" : shotWarn ? "0 0 30px rgba(255,165,0,0.5)" : `0 0 30px ${shotColor}44`,
-          animation: shotUrgent && shotRunning ? "urgentPulse 0.45s ease-in-out infinite" : "none" }}>
+          textShadow: shotUrgent ? "0 0 50px rgba(255,30,30,0.9)" : shotWarn ? "0 0 30px rgba(255,165,0,0.5)" : `0 0 30px ${shotColor}44` }}>
           {formatShotClock(shotClockTenths)}
         </div>
         <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", margin: "8px 0" }}>
@@ -271,7 +289,6 @@ function CenterCol({ state }) {
         border: gameTimeUp ? "2px solid #FF0000" : "1px solid rgba(255,215,0,0.15)",
         borderRadius: 18, padding: "14px 14px",
         boxShadow: gameTimeUp ? "0 0 50px rgba(255,0,0,0.5)" : "none",
-        animation: gameTimeUp ? "flashRed 0.5s infinite" : "none",
         transition: "all 0.3s"
       }}>
         <div style={{ ...S({ fontSize: 10, letterSpacing: "0.5em" }), color: gameTimeUp ? "#FF9999" : "rgba(255,215,0,0.55)", textAlign: "center", marginBottom: 6 }}>GAME CLOCK</div>
@@ -334,159 +351,133 @@ function CenterCol({ state }) {
           ))}
         </div>
       </div>
+
     </div>
   );
 }
 
-// Preview using Oswald font to match the actual overlay
+// ─── Overlay Preview ─────────────────────────────────────────────────────────
+// 📍 วางไว้ TOP ของจอ — เหมาะกับ Facebook Live (comment ลอยจากด้านล่าง)
 function OverlayPreview({ state }) {
   const { teamA, teamB, quarter, clockTenths, isRunning, shotClockTenths, shotRunning, possession, jumpBall } = state;
   const shotSec    = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const shotWarn   = shotSec <= 10 && shotClockTenths > 0;
-  const shotCol    = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#fff";
+  
+  // สีตัวอักษรเปลี่ยนตามเวลา
+  const shotCol    = shotUrgent ? "#FF2222" : shotWarn ? "#FFA500" : "#fff";
   const gameTimeUp = clockTenths === 0;
   
-  const O = "'Oswald', sans-serif";
+  const O  = "'Oswald', sans-serif";
+  const BC = "'Barlow Condensed',sans-serif";
+  const getQLabel = (q) => q <= 4 ? `Q${q}` : `OT${q-4}`;
 
-  const getQLabel = (q) => q <= 4 ? `QUARTER ${q}` : `OVERTIME ${q-4}`;
-
-  const TeamPanel = ({ team, tKey, flip }) => {
+  const TeamSide = ({ team, tKey, flip }) => {
     const isPoss   = possession === tKey;
-    const dotColor = team.teamFouls >= 5 ? "#FF3333" : team.color;
+    const dc       = team.teamFouls >= 5 ? "#FF3333" : team.color;
     const hasBonus = team.teamFouls >= 5;
     const hasDbl   = team.teamFouls >= 7;
     const dir      = flip ? "row-reverse" : "row";
-    const infoAlign = flip ? "flex-end" : "flex-start";
-    const gradBg   = hexToRgba(team.color, 0.15);
-
+    const flood    = flip
+      ? `linear-gradient(270deg, ${hexToRgba(team.color,0.22)} 0%, rgba(0,0,0,0) 45%)`
+      : `linear-gradient(90deg, ${hexToRgba(team.color,0.22)} 0%, rgba(0,0,0,0) 45%)`;
     return (
-      <div style={{ flex: 1, display: "flex", flexDirection: dir, alignItems: "center",
-        padding: "0 20px", gap: 0, position: "relative",
-        background: flip ? `linear-gradient(270deg, ${gradBg} 0%, transparent 70%)` : `linear-gradient(90deg, ${gradBg} 0%, transparent 70%)` }}>
-        
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: team.color }} />
-
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: infoAlign }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexDirection: dir }}>
-            {isPoss && (
-              <span style={{ fontFamily: O, fontSize: 16, color: team.color, textShadow: `0 0 8px ${team.color}` }}>
-                {flip ? "▶" : "◀"}
-              </span>
-            )}
-            <div style={{ fontFamily: O, fontSize: 30, fontWeight: 700, color: "#fff",
-              letterSpacing: "0.05em", lineHeight: 1, textTransform: "uppercase" }}>
-              {team.name}
-            </div>
+      <div style={{ flex:1, display:"flex", flexDirection:dir, alignItems:"center",
+        position:"relative", overflow:"hidden",
+        padding: flip?"0 22px 0 14px":"0 14px 0 22px",
+        background:"linear-gradient(180deg,#111219 0%,#080910 100%)" }}>
+        {/* Color strip top */}
+        <div style={{ position:"absolute",top:0,left:0,right:0,height:4,
+          background:team.color, zIndex:3 }} />
+        {/* Color flood from edge */}
+        <div style={{ position:"absolute",inset:0,background:flood,pointerEvents:"none" }} />
+        {/* Grid texture */}
+        <div style={{ position:"absolute",inset:0,pointerEvents:"none",
+          backgroundImage:"linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)",
+          backgroundSize:"36px 36px" }} />
+        {/* Score */}
+        <div style={{ position:"relative",zIndex:2,fontFamily:O,fontSize:68,fontWeight:700,lineHeight:1,
+          color:team.color,minWidth:95,textAlign:"center",flexShrink:0,letterSpacing:"-0.02em",
+          textShadow:`0 0 28px ${team.color},0 3px 6px rgba(0,0,0,0.8)` }}>
+          {team.score}
+        </div>
+        {/* Info */}
+        <div style={{ position:"relative",zIndex:2,flex:1,padding:"0 12px",
+          display:"flex",flexDirection:"column",alignItems:flip?"flex-end":"flex-start" }}>
+          <div style={{ display:"flex",alignItems:"center",gap:9,flexDirection:dir }}>
+            {isPoss && <span style={{ fontFamily:O,fontSize:18,color:team.color,textShadow:`0 0 12px ${team.color}` }}>{flip?"▶":"◀"}</span>}
+            <div style={{ fontFamily:O,fontSize:32,fontWeight:700,color:"#fff",letterSpacing:"0.06em",lineHeight:1,textShadow:"0 2px 6px rgba(0,0,0,0.7)" }}>{team.name}</div>
           </div>
-          
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, flexDirection: dir }}>
-            <span style={{ fontFamily: O, fontSize: 11, fontWeight: 500, letterSpacing: "0.08em",
-              color: "rgba(255,255,255,0.45)" }}>FOULS</span>
-            <span style={{ fontFamily: O, fontSize: 11, fontWeight: 700, color: "#fff" }}>
-              {team.teamFouls}
-            </span>
-            <div style={{ display: "flex", gap: 3 }}>
-              {Array.from({length:5}).map((_,i) => (
-                <div key={i} style={{
-                  width: 6, height: 6, borderRadius: "50%",
-                  background: i < Math.min(team.teamFouls,5) ? dotColor : "rgba(255,255,255,0.12)",
-                }} />
+          <div style={{ display:"flex",alignItems:"center",gap:7,marginTop:4,flexDirection:dir }}>
+            <span style={{ fontFamily:BC,fontSize:12,fontWeight:800,letterSpacing:"0.1em",color:"rgba(255,255,255,0.4)" }}>FOULS</span>
+            <span style={{ fontFamily:BC,fontSize:12,fontWeight:800,color:"#fff" }}>{team.teamFouls}</span>
+            <div style={{ display:"flex",gap:4 }}>
+              {Array.from({length:5}).map((_,i)=>(
+                <div key={i} style={{ width:8,height:8,borderRadius:"50%",
+                  background:i<Math.min(team.teamFouls,5)?dc:"rgba(255,255,255,0.1)",
+                  boxShadow:i<Math.min(team.teamFouls,5)?`0 0 5px ${dc}`:"none" }} />
               ))}
             </div>
-            {hasBonus && (
-              <div style={{ fontFamily: O, fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
-                padding: "1px 5px", borderRadius: 3, animation: "pulse 1s infinite",
-                background: hasDbl ? "rgba(255,40,40,0.2)" : "rgba(255,165,0,0.2)",
-                border: `1px solid ${hasDbl ? "rgba(255,40,40,0.6)" : "rgba(255,165,0,0.6)"}`,
-                color: hasDbl ? "#FF3333" : "#FFA500" }}>
-                {hasDbl ? "PENALTY" : "BONUS"}
-              </div>
-            )}
+            {hasBonus && <div style={{ fontFamily:BC,fontSize:10,fontWeight:800,letterSpacing:"0.12em",padding:"1px 6px",borderRadius:3,background:hasDbl?"rgba(255,40,40,0.15)":"rgba(255,165,0,0.15)",border:`1px solid ${hasDbl?"rgba(255,40,40,0.5)":"rgba(255,165,0,0.5)"}`,color:hasDbl?"#FF3333":"#FFA500" }}>{hasDbl?"PENALTY":"BONUS"}</div>}
           </div>
-          
-          <div style={{ display: "flex", gap: 4, marginTop: 4, flexDirection: dir }}>
-            {Array.from({length:3}).map((_,i) => (
-              <div key={i} style={{
-                width: 16, height: 3, borderRadius: 2,
-                background: i < team.timeouts ? team.color : "rgba(255,255,255,0.12)",
-              }} />
+          <div style={{ display:"flex",gap:5,marginTop:5,flexDirection:dir }}>
+            {Array.from({length:3}).map((_,i)=>(
+              <div key={i} style={{ width:22,height:4,borderRadius:2,
+                background:i<team.timeouts?team.color:"rgba(255,255,255,0.1)",
+                boxShadow:i<team.timeouts?`0 0 7px ${team.color}`:"none" }} />
             ))}
           </div>
-        </div>
-
-        <div style={{ fontFamily: O, fontSize: 62, fontWeight: 700, lineHeight: 1,
-          color: team.color, minWidth: 90, textAlign: "center", flexShrink: 0 }}>
-          {team.score}
         </div>
       </div>
     );
   };
 
-  const clockColor = gameTimeUp ? "#FF3333" : "#fff";
-  const maxDots = quarter > 4 ? 1 : 4;
-
   return (
-    <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)",
-      boxShadow: "0 4px 30px rgba(0,0,0,0.7)", position: "relative" }}>
-      {/* ✅ ปรับ minHeight จาก 75 เป็น 95 */}
-      <div style={{ display: "flex", minHeight: 95, background: "rgba(12,14,20,0.95)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+    <div style={{ borderRadius:8, overflow:"hidden", border:"1px solid rgba(255,255,255,0.07)", boxShadow:"0 6px 30px rgba(0,0,0,0.8)" }}>
+      <div style={{ display:"flex", height:110, background:"linear-gradient(180deg,#0d0e15 0%,#06070d 100%)" }}>
+        <TeamSide team={teamA} tKey="teamA" flip={false} />
         
-        <TeamPanel team={teamA} tKey="teamA" flip={false} />
-
-        {/* ✅ ปรับความยาวเส้นคั่นจาก 50 เป็น 65 */}
-        <div style={{ width: 1, height: 65, background: "rgba(255,255,255,0.08)", alignSelf: "center" }} />
-
-        {/* Center Panel (Oswald Font) */}
-        <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", padding: "8px 0" }}>
+        {/* Center Column */}
+        <div style={{ width:210,flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"space-between",
+          background:"linear-gradient(180deg,#0d0e15 0%,#06070d 100%)",
+          borderLeft:"1px solid rgba(255,255,255,0.07)",borderRight:"1px solid rgba(255,255,255,0.07)",
+          padding:"10px 0",position:"relative" }}>
           
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 0 }}>
-            <div style={{ fontFamily: O, fontSize: 10, fontWeight: 700, letterSpacing: "0.25em",
-              color: "#FFD700", textTransform: "uppercase" }}>
-              {getQLabel(quarter)}
-            </div>
-            <div style={{ display: "flex", gap: 3 }}>
-              {Array.from({length: maxDots}).map((_, i) => (
-                <div key={i} style={{
-                  width: 5, height: 5, borderRadius: "50%",
-                  background: i < (quarter > 4 ? 1 : quarter) ? "#FFD700" : "transparent",
-                  border: "1px solid rgba(255,215,0,0.5)"
-                }} />
-              ))}
-            </div>
+          {jumpBall && <div style={{ position:"absolute",top:10,right:8,fontFamily:BC,fontSize:10,fontWeight:800,letterSpacing:"0.15em",color:"#FFD700" }}>⊕ JUMP</div>}
+
+          {/* Q1 */}
+          <div style={{ fontFamily:O,fontSize:14,fontWeight:700,
+            color:"#FFD700",letterSpacing:"0.25em",lineHeight:1 }}>
+            {getQLabel(quarter)}
           </div>
-          
-          <div style={{ fontFamily: O, fontSize: 50, fontWeight: 700, lineHeight: 1.1,
-            color: clockColor, fontVariantNumeric: "tabular-nums",
-            animation: gameTimeUp ? "flashRed 0.5s infinite" : "none" }}>
+
+          {/* Game Clock */}
+          <div style={{ fontFamily:O,fontSize:48,fontWeight:700,lineHeight:1,
+            color:gameTimeUp?"#FF2222":"#fff",fontVariantNumeric:"tabular-nums",letterSpacing:"0.01em",
+            textShadow:gameTimeUp?"0 0 24px rgba(255,20,20,0.9)":isRunning?"0 0 14px rgba(255,255,255,0.2)":"none" }}>
             {formatGameClock(clockTenths)}
           </div>
           
-          <div style={{ display: "flex", alignItems: "center", gap: 6, 
-            background: shotUrgent ? "rgba(255,51,51,0.15)" : "rgba(0,0,0,0.4)", 
-            padding: "1px 8px", borderRadius: 4, 
-            border: `1px solid ${shotUrgent ? "rgba(255,51,51,0.4)" : shotWarn ? "rgba(255,165,0,0.3)" : "rgba(255,255,255,0.1)"}` }}>
-            <span style={{ fontFamily: O, fontSize: 10, fontWeight: 500, letterSpacing: "0.15em",
-              color: "rgba(255,255,255,0.4)" }}>SHOT</span>
-            <span style={{ fontFamily: O, fontSize: 24, fontWeight: 700, lineHeight: 1,
-              color: shotCol, fontVariantNumeric: "tabular-nums",
-              animation: shotUrgent && shotRunning ? "urgentPulse 0.45s ease-in-out infinite" : "none" }}>
+          {/* Shot Clock Container */}
+          <div style={{ display:"flex",alignItems:"center",gap:7,
+            marginBottom: 6, 
+            background:shotUrgent?"rgba(255,20,20,0.15)":"rgba(0,0,0,0.3)",
+            border:"none", 
+            borderRadius:7,padding:"2px 12px 2px" }}>
+            <span style={{ fontFamily:BC,fontSize:11,fontWeight:800,letterSpacing:"0.2em",color:"rgba(255,255,255,0.3)" }}>SHOT</span>
+            <span style={{ fontFamily:O,fontSize:26,fontWeight:700,lineHeight:1,color:shotCol,
+              fontVariantNumeric:"tabular-nums" }}>
               {formatShotClock(shotClockTenths)}
             </span>
           </div>
-
         </div>
-
-        {/* ✅ ปรับความยาวเส้นคั่นจาก 50 เป็น 65 */}
-        <div style={{ width: 1, height: 65, background: "rgba(255,255,255,0.08)", alignSelf: "center" }} />
-
-        <TeamPanel team={teamB} tKey="teamB" flip={true} />
+        
+        <TeamSide team={teamB} tKey="teamB" flip={true} />
       </div>
     </div>
   );
 }
-
+// ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [state, setState] = useState({
     teamA: { name: "HOME", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#FF6B35" },
@@ -556,17 +547,12 @@ export default function App() {
     return () => { socket.off("stateUpdate"); socket.off("connect"); socket.off("disconnect"); };
   }, []);
 
-  const enableAudioContext = () => {
-    if (hornAudio && hornAudio.volume === 0) hornAudio.volume = 0.8;
-  };
+  const enableAudioContext = () => unlockAudio();
 
   return (
     <div onClick={enableAudioContext} style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 25% 0%,#13101e,#080810 55%)", padding: 14, fontFamily: "system-ui,sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@500;700&display=swap');
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
-        @keyframes urgentPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.96)} }
-        @keyframes flashRed { 0%,100%{background-color:rgba(255,0,0,0.3);} 50%{background-color:rgba(255,0,0,0.6);} }
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
         button { font-family:'Bebas Neue',Impact,sans-serif; outline:none; }
         *{box-sizing:border-box;margin:0;padding:0;}
         .btn-scale:active { transform: scale(0.93) !important; }
@@ -584,11 +570,11 @@ export default function App() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: 100, background: connected ? "rgba(0,232,122,0.07)" : "rgba(255,55,55,0.07)", border: `1px solid ${connected ? "rgba(0,232,122,0.25)" : "rgba(255,55,55,0.25)"}`, fontFamily: "'Bebas Neue',Impact,sans-serif", fontSize: 12, letterSpacing: "0.18em", color: connected ? "#00E87A" : "#FF5555" }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#00E87A" : "#FF5555", animation: connected ? "pulse 1.5s infinite" : "none" }} />
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#00E87A" : "#FF5555" }} />
             {connected ? "CONNECTED" : "DISCONNECTED"}
           </div>
           {state.isRunning && (
-            <div style={{ padding: "6px 14px", borderRadius: 100, background: "rgba(255,55,55,0.1)", border: "1px solid rgba(255,55,55,0.35)", fontFamily: "'Bebas Neue',Impact,sans-serif", fontSize: 12, letterSpacing: "0.18em", color: "#FF5555", animation: "pulse 1s infinite" }}>● LIVE</div>
+            <div style={{ padding: "6px 14px", borderRadius: 100, background: "rgba(255,55,55,0.1)", border: "1px solid rgba(255,55,55,0.35)", fontFamily: "'Bebas Neue',Impact,sans-serif", fontSize: 12, letterSpacing: "0.18em", color: "#FF5555" }}>● LIVE</div>
           )}
           <button className="btn-scale" onClick={() => { if (window.confirm("RESET GAME ทั้งหมด?")) send("resetGame"); }}
             style={{ padding: "6px 16px", borderRadius: 100, background: "rgba(255,55,55,0.07)", border: "1px solid rgba(255,55,55,0.22)", color: "#FF7070", fontFamily: "'Bebas Neue',Impact,sans-serif", fontSize: 12, letterSpacing: "0.15em", cursor: "pointer" }}>
