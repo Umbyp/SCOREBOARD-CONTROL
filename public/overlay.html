@@ -2,271 +2,482 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Professional Scoreboard Overlay</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@700&display=swap" rel="stylesheet" />
+  <title>Scoreboard Overlay</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      width: 1920px; height: 200px;
-      overflow: hidden; background: transparent !important;
-      font-family: 'Bebas Neue', cursive;
+      width: 1920px; height: 1080px;
+      overflow: hidden;
+      background: transparent !important;
+      font-family: 'Oswald', sans-serif;
     }
 
-    #overlay-wrapper {
-      width: 1300px;
-      margin: 30px auto;
+    /* ── Full-width bar pinned to bottom ── */
+    #bar {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 1920px;
+      height: 120px; /* ✅ ปรับความสูงเป็น 120px เพื่อไม่ให้ตรงกลางตกขอบ */
       display: flex;
-      background: linear-gradient(180deg, rgba(15, 15, 20, 0.9) 0%, rgba(5, 5, 10, 1) 100%);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+      background: rgba(12, 14, 20, 0.95);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* ── COLOR STRIPS (top edge, split per team) ── */
+    #strip-a {
+      position: absolute;
+      top: 0; left: 0; width: 760px; height: 4px;
+      background: var(--color-a, #FF6B35);
+    }
+    #strip-b {
+      position: absolute;
+      top: 0; right: 0; width: 760px; height: 4px;
+      background: var(--color-b, #00D4FF);
+    }
+
+    /* ── TEAM PANELS ── */
+    .team-panel {
+      width: 760px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding: 0 40px;
+      gap: 0;
+      flex-shrink: 0;
+      position: relative;
+    }
+    
+    /* Background Gradients injected via JS */
+    #panel-a { flex-direction: row; }
+    #panel-b { flex-direction: row-reverse; }
+
+    /* ── TEAM INFO (name + stats) ── */
+    .team-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex: 1;
+      position: relative;
+      z-index: 2;
+    }
+    #panel-b .team-info { align-items: flex-end; }
+
+    .team-name-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #panel-b .team-name-row { flex-direction: row-reverse; }
+
+    .team-name {
+      font-size: 42px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.05em;
+      line-height: 1;
+      text-transform: uppercase;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Possession Arrow */
+    .poss-arrow {
+      font-size: 20px;
+      color: var(--team-color);
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      text-shadow: 0 0 10px var(--team-color);
+    }
+    .poss-arrow.visible { opacity: 1; }
+    #panel-a .poss-arrow { transform: translateX(-5px); }
+    #panel-a .poss-arrow.visible { transform: translateX(0); }
+    #panel-b .poss-arrow { transform: translateX(5px); }
+    #panel-b .poss-arrow.visible { transform: translateX(0); }
+
+    /* ── FOULS ROW ── */
+    .fouls-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    #panel-b .fouls-row { flex-direction: row-reverse; }
+
+    .fouls-label {
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.45);
+    }
+    .fouls-count {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .foul-dots { display: flex; gap: 4px; }
+    .foul-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: rgba(255,255,255,0.12);
+    }
+    .foul-dot.active { background: var(--team-color); box-shadow: 0 0 6px var(--team-color); }
+
+    /* ── TIMEOUT PIPS ── */
+    .to-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    #panel-b .to-row { flex-direction: row-reverse; }
+    .to-pip {
+      width: 20px; height: 4px; border-radius: 2px;
+      background: rgba(255,255,255,0.12);
+    }
+    .to-pip.active {
+      background: var(--team-color);
+      box-shadow: 0 0 6px var(--team-color);
+    }
+
+    /* ── SCORE ── */
+    .team-score {
+      font-size: 84px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--team-color);
+      min-width: 140px;
+      text-align: center;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 2;
+      transition: transform 0.12s cubic-bezier(0.175,0.885,0.32,1.275), filter 0.15s;
+    }
+    .team-score.bump {
+      transform: scale(1.15);
+      filter: drop-shadow(0 0 20px var(--team-color));
+    }
+
+    /* ── CENTER BLOCK ── */
+    #center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6px 0;
       position: relative;
     }
 
-    .team-panel { flex: 1; display: flex; flex-direction: column; position: relative; }
-    .top-strip { height: 6px; width: 100%; border-radius: 12px 12px 0 0; }
-
-    .team-inner {
-      flex: 1; display: flex; align-items: center;
-      padding: 10px 40px; gap: 30px;
+    /* Quarter Text + Dots */
+    #quarter-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: -2px;
     }
-    #team-b-panel .team-inner { flex-direction: row-reverse; }
-
-    .team-info { flex: 1; display: flex; flex-direction: column; }
-    #team-b-panel .team-info { align-items: flex-end; }
-
-    .meta-row { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
-    #team-b-panel .meta-row { flex-direction: row-reverse; }
-
-    .foul-box {
-      font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px;
-      padding: 4px 12px; border-radius: 4px; background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6);
+    #quarter-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.25em;
+      color: #FFD700;
       text-transform: uppercase;
     }
-    .foul-box span { font-size: 18px; color: #fff; margin-left: 6px; }
-
-    .possession {
-      font-size: 14px; padding: 3px 10px; border-radius: 4px; font-weight: bold;
-      background: rgba(255, 255, 255, 0.1); display: none;
-      box-shadow: 0 0 15px currentColor;
+    #quarter-dots {
+      display: flex;
+      gap: 4px;
     }
+    .q-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      border: 1px solid rgba(255,215,0,0.5);
+      background: transparent;
+    }
+    .q-dot.active { background: #FFD700; box-shadow: 0 0 5px rgba(255,215,0,0.8); border: none; }
 
+    #main-clock {
+      font-size: 68px;
+      font-weight: 700;
+      line-height: 1;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.2s;
+    }
+    #main-clock.running { color: #ffffff; }
+    #main-clock.expired { color: #FF3333; animation: flash 0.5s infinite; }
+
+    /* Separated Shot Clock Box */
+    #shot-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 2px 12px;
+      margin-top: -2px;
+      box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+    }
+    #shot-label {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      color: rgba(255,255,255,0.4);
+    }
+    #shot-clock {
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+      color: #ffffff;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.15s;
+      min-width: 40px;
+      text-align: center;
+    }
+    #shot-box.warn   { border-color: rgba(255,165,0,0.3); }
+    #shot-clock.warn { color: #FFA500; }
+    #shot-box.urgent { border-color: rgba(255,51,51,0.4); background: rgba(255,51,51,0.1); }
+    #shot-clock.urgent { color: #FF3333; animation: urgentPulse 0.45s ease-in-out infinite; }
+
+    /* Bonus badge */
     .bonus-tag {
-      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 900;
-      display: none; animation: pulse 1s infinite;
+      display: none;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      padding: 1px 6px;
+      border-radius: 3px;
+      animation: pulse 1s infinite;
+    }
+    .bonus-tag.bonus { display: inline-block; background: rgba(255,165,0,0.2); border: 1px solid rgba(255,165,0,0.6); color: #FFA500; }
+    .bonus-tag.dbl   { display: inline-block; background: rgba(255,40,40,0.2);  border: 1px solid rgba(255,40,40,0.6);  color: #FF3333; }
+
+    /* Jump ball */
+    #jump-tag {
+      display: none;
+      position: absolute; right: 20px; top: 10px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.15em;
+      color: #FFD700; animation: pulse 0.8s infinite;
+    }
+    #jump-tag.visible { display: block; }
+
+    /* Dividers */
+    .divider {
+      width: 1px; height: 80px; /* ✅ ปรับความยาวเส้นคั่นเป็น 80px */
+      background: rgba(255,255,255,0.1);
+      flex-shrink: 0;
+      align-self: center;
     }
 
-    .name { font-size: 48px; color: white; letter-spacing: 0.05em; line-height: 1; }
-
-    .score {
-      font-size: 100px; line-height: 0.9; font-weight: 900;
-      text-shadow: 0 0 30px rgba(0,0,0,0.5);
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    .bump {
-      transform: scale(1.2);
-      text-shadow: 0 0 40px currentColor;
-    }
-
-    .pips-row { display: flex; gap: 6px; margin-top: 10px; }
-    .pip {
-        width: 22px; height: 6px; background: rgba(255,255,255,0.1);
-        border-radius: 2px; transition: background 0.4s ease;
-    }
-
-    #clock-core {
-      width: 280px;
-      background: rgba(255, 255, 255, 0.03);
-      border-left: 1px solid rgba(255,255,255,0.1);
-      border-right: 1px solid rgba(255,255,255,0.1);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      position: relative;
-    }
-
-    #q-label {
-      font-size: 16px; color: #FFD700; letter-spacing: 0.3em;
-      margin-bottom: 4px; font-weight: bold;
-    }
-
-    #main-time { font-size: 58px; color: white; line-height: 1; font-variant-numeric: tabular-nums; }
-    #main-time.running { color: #fff; text-shadow: 0 0 20px rgba(255,255,255,0.4); }
-    #main-time.expired { color: #ff3333; animation: flash 0.5s infinite; }
-
-    .hr { width: 120px; height: 2px; background: rgba(255,255,255,0.15); margin: 8px 0; }
-
-    .shot-row { display: flex; align-items: center; gap: 12px; }
-    .shot-tag { font-size: 14px; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; }
-    #shot-time { font-size: 48px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
-
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    @keyframes flash { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes pulse       { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes flash       { 0%,100%{opacity:1} 50%{opacity:0.05} }
+    @keyframes urgentPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.93)} }
   </style>
 </head>
 <body>
 
-<div id="overlay-wrapper">
-  <div class="team-panel" id="team-a-panel">
-    <div class="top-strip" id="strip-a"></div>
-    <div class="team-inner">
-      <div class="team-info">
-        <div class="meta-row">
-          <div id="poss-a" class="possession">◀ BALL</div>
-          <div class="foul-box">FOULS <span id="tf-a">0</span></div>
-          <div id="bonus-a" class="bonus-tag">BONUS</div>
-        </div>
-        <div class="name" id="name-a">HOME</div>
-        <div class="pips-row" id="pips-a"></div>
+<div id="bar">
+  <div id="strip-a"></div>
+  <div id="strip-b"></div>
+
+  <div class="team-panel" id="panel-a" style="--team-color:#FF6B35;">
+    <div class="team-info">
+      <div class="team-name-row">
+        <div class="poss-arrow" id="poss-a">◀</div>
+        <div class="team-name" id="name-a">HOME</div>
       </div>
-      <div class="score" id="score-a">0</div>
+      <div class="fouls-row">
+        <span class="fouls-label">FOULS</span>
+        <span class="fouls-count" id="fouls-num-a">0</span>
+        <div class="foul-dots" id="fouls-a"></div>
+        <div class="bonus-tag" id="bonus-a"></div>
+      </div>
+      <div class="to-row" id="timeouts-a"></div>
+    </div>
+    <div class="team-score" id="score-a">0</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div id="center">
+    <div id="jump-tag">⊕ JUMP</div>
+    <div id="quarter-container">
+      <div id="quarter-label">QUARTER 1</div>
+      <div id="quarter-dots">
+        <div class="q-dot active"></div><div class="q-dot"></div><div class="q-dot"></div><div class="q-dot"></div>
+      </div>
+    </div>
+    <div id="main-clock">10:00</div>
+    <div id="shot-box">
+      <span id="shot-label">SHOT</span>
+      <span id="shot-clock">24</span>
     </div>
   </div>
 
-  <div id="clock-core">
-    <div id="q-label">Q1</div>
-    <div id="main-time">10:00</div>
-    <div class="hr"></div>
-    <div class="shot-row">
-      <div class="shot-tag">SHOT</div>
-      <div id="shot-time">24</div>
-    </div>
-  </div>
+  <div class="divider"></div>
 
-  <div class="team-panel" id="team-b-panel">
-    <div class="top-strip" id="strip-b"></div>
-    <div class="team-inner">
-      <div class="team-info">
-        <div class="meta-row">
-          <div id="poss-b" class="possession">BALL ▶</div>
-          <div class="foul-box">FOULS <span id="tf-b">0</span></div>
-          <div id="bonus-b" class="bonus-tag">BONUS</div>
-        </div>
-        <div class="name" id="name-b">AWAY</div>
-        <div class="pips-row" id="pips-b"></div>
+  <div class="team-panel" id="panel-b" style="--team-color:#00D4FF;">
+    <div class="team-info">
+      <div class="team-name-row">
+        <div class="poss-arrow" id="poss-b">▶</div>
+        <div class="team-name" id="name-b">AWAY</div>
       </div>
-      <div class="score" id="score-b">0</div>
+      <div class="fouls-row">
+        <span class="fouls-label">FOULS</span>
+        <span class="fouls-count" id="fouls-num-b">0</span>
+        <div class="foul-dots" id="fouls-b"></div>
+        <div class="bonus-tag" id="bonus-b"></div>
+      </div>
+      <div class="to-row" id="timeouts-b"></div>
     </div>
+    <div class="team-score" id="score-b">0</div>
   </div>
 </div>
 
-<!-- ✅ FIX: Load socket.io จาก origin เดียวกับ server (Render) แทน hardcode -->
 <script>
-  // กำหนด server URL ตรงนี้จุดเดียว ถ้าย้าย server ให้แก้ที่นี่อย่างเดียว
   const SERVER_URL = "https://scoreboard-control.onrender.com";
 </script>
 <script id="socket-loader"></script>
 <script>
-  // โหลด socket.io จาก server จริง แล้วค่อย connect
-  const loaderScript = document.getElementById("socket-loader");
-  loaderScript.src = SERVER_URL + "/socket.io/socket.io.js";
-  loaderScript.onload = function() {
-    initOverlay();
-  };
+  document.getElementById("socket-loader").src = SERVER_URL + "/socket.io/socket.io.js";
+  document.getElementById("socket-loader").onload = initOverlay;
 
   let lastData = null;
 
-  function formatMain(tenths) {
-    const s = Math.max(0, tenths);
-    if (s > 600) {
-      const totalSec = Math.floor(s / 10);
-      return Math.floor(totalSec / 60).toString().padStart(2, '0') + ':' + (totalSec % 60).toString().padStart(2, '0');
-    }
-    return Math.floor(s / 10).toString().padStart(2, '0') + '.' + (s % 10);
+  // Helper: Hex to RGBA for gradient backgrounds
+  function hexToRgba(hex, alpha) {
+    let c = hex.substring(1).split('');
+    if(c.length === 3){ c = [c[0], c[0], c[1], c[1], c[2], c[2]]; }
+    c = '0x' + c.join('');
+    return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
   }
 
-  function formatShot(tenths) {
-    if (tenths <= 0) return "0";
-    if (tenths > 100) return Math.ceil(tenths / 10);
-    return (tenths / 10).toFixed(1);
+  function getQuarterLabel(q) {
+    return q <= 4 ? `QUARTER ${q}` : `OVERTIME ${q-4}`;
+  }
+
+  function formatMain(t) {
+    t = Math.max(0, t);
+    if (t > 600) {
+      const s = Math.floor(t/10);
+      return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+    }
+    return String(Math.floor(t/10)).padStart(2,'0') + '.' + (t%10);
+  }
+
+  function formatShot(t) {
+    if (t <= 0) return "0";
+    if (t > 100) return String(Math.ceil(t/10));
+    return (t/10).toFixed(1);
   }
 
   function updateTeam(prefix, team, isPoss) {
-    document.getElementById(`name-${prefix}`).textContent = team.name;
+    const panel   = document.getElementById(`panel-${prefix}`);
     const scoreEl = document.getElementById(`score-${prefix}`);
+    const key     = `team${prefix.toUpperCase()}`;
 
-    if (lastData && lastData[`team${prefix.toUpperCase()}`].score !== team.score) {
-      scoreEl.classList.add('bump');
-      setTimeout(() => scoreEl.classList.remove('bump'), 400);
-    }
-
-    scoreEl.textContent = team.score;
-    scoreEl.style.color = team.color;
+    panel.style.setProperty('--team-color', team.color);
     document.getElementById(`strip-${prefix}`).style.background = team.color;
 
-    const pEl = document.getElementById(`poss-${prefix}`);
-    pEl.style.display = isPoss ? 'block' : 'none';
-    pEl.style.color = team.color;
+    // Background Gradient (Fades into center)
+    const bgColor = hexToRgba(team.color, 0.15);
+    panel.style.background = prefix === 'a' 
+      ? `linear-gradient(90deg, ${bgColor} 0%, transparent 70%)`
+      : `linear-gradient(270deg, ${bgColor} 0%, transparent 70%)`;
 
-    const tfEl = document.getElementById(`tf-${prefix}`);
-    tfEl.textContent = team.teamFouls;
-    if (team.teamFouls >= 5) tfEl.style.color = '#ff3333';
-    else if (team.teamFouls >= 4) tfEl.style.color = '#ffa500';
-    else tfEl.style.color = 'white';
+    // Score bump
+    if (lastData && lastData[key]?.score !== team.score) {
+      scoreEl.classList.add('bump');
+      setTimeout(() => scoreEl.classList.remove('bump'), 180);
+    }
+    scoreEl.textContent = team.score;
 
-    const bEl = document.getElementById(`bonus-${prefix}`);
-    if (team.teamFouls >= 5) {
-      bEl.style.display = 'block';
-      bEl.textContent = team.teamFouls >= 7 ? 'DBL BONUS' : 'BONUS';
-      bEl.style.color = team.teamFouls >= 7 ? '#ff3333' : '#ffa500';
+    document.getElementById(`name-${prefix}`).textContent = team.name;
+
+    // Fouls
+    document.getElementById(`fouls-num-${prefix}`).textContent = team.teamFouls;
+    const dotColor = team.teamFouls >= 5 ? '#FF3333' : team.color;
+    const foulsEl  = document.getElementById(`fouls-${prefix}`);
+    foulsEl.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const d = document.createElement('div');
+      d.className = 'foul-dot' + (i < Math.min(team.teamFouls,5) ? ' active' : '');
+      d.style.setProperty('--team-color', dotColor);
+      foulsEl.appendChild(d);
+    }
+
+    // Bonus
+    const bonusEl = document.getElementById(`bonus-${prefix}`);
+    if (team.teamFouls >= 7) {
+      bonusEl.className = 'bonus-tag dbl'; bonusEl.textContent = 'PENALTY';
+    } else if (team.teamFouls >= 5) {
+      bonusEl.className = 'bonus-tag bonus'; bonusEl.textContent = 'BONUS';
     } else {
-      bEl.style.display = 'none';
+      bonusEl.className = 'bonus-tag';
     }
 
-    const pipsContainer = document.getElementById(`pips-${prefix}`);
-    pipsContainer.innerHTML = '';
-    const maxTimeouts = 3;
-    for(let i=0; i < maxTimeouts; i++) {
-      const pip = document.createElement('div');
-      pip.className = 'pip';
-      if (i < team.timeouts) {
-          pip.style.background = team.color;
-          pip.style.boxShadow = `0 0 10px ${team.color}`;
-      }
-      pipsContainer.appendChild(pip);
+    // Timeouts
+    const toEl = document.getElementById(`timeouts-${prefix}`);
+    toEl.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const p = document.createElement('div');
+      p.className = 'to-pip' + (i < team.timeouts ? ' active' : '');
+      toEl.appendChild(p);
     }
+
+    // Possession Arrow
+    document.getElementById(`poss-${prefix}`).classList.toggle('visible', isPoss);
   }
 
   function render(s) {
+    if (!s) return;
     updateTeam('a', s.teamA, s.possession === 'teamA');
     updateTeam('b', s.teamB, s.possession === 'teamB');
 
-    const mainEl = document.getElementById('main-time');
-    mainEl.textContent = formatMain(s.clockTenths);
-    mainEl.className = s.clockTenths === 0 ? 'expired' : (s.isRunning ? 'running' : '');
+    // Game clock
+    const clockEl = document.getElementById('main-clock');
+    clockEl.textContent = formatMain(s.clockTenths);
+    clockEl.className = s.clockTenths <= 0 ? 'expired' : s.isRunning ? 'running' : '';
 
-    const shotEl = document.getElementById('shot-time');
+    // Shot clock
+    const shotBox = document.getElementById('shot-box');
+    const shotEl  = document.getElementById('shot-clock');
+    const shotSec = s.shotClockTenths / 10;
+    
     shotEl.textContent = formatShot(s.shotClockTenths);
-    if (s.shotClockTenths <= 50 && s.shotClockTenths > 0) shotEl.style.color = '#ff3333';
-    else if (s.shotClockTenths <= 100 && s.shotClockTenths > 0) shotEl.style.color = '#ffa500';
-    else shotEl.style.color = 'white';
+    if (shotSec <= 5 && s.shotClockTenths > 0) {
+      shotBox.className = 'urgent';
+      shotEl.className = 'urgent';
+    } else if (shotSec <= 10 && s.shotClockTenths > 0) {
+      shotBox.className = 'warn';
+      shotEl.className = 'warn';
+    } else {
+      shotBox.className = '';
+      shotEl.className = '';
+    }
 
-    const qText = s.quarter > 4 ? `OT${s.quarter-4}` : `QUARTER ${s.quarter}`;
-    document.getElementById('q-label').textContent = qText;
+    // Quarter + Dots
+    document.getElementById('quarter-label').textContent = getQuarterLabel(s.quarter);
+    const qDots = document.getElementById('quarter-dots');
+    qDots.innerHTML = '';
+    const maxDots = s.quarter > 4 ? 1 : 4; // Use 1 dot for OT, or 4 for normal
+    for (let i = 1; i <= maxDots; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'q-dot' + (i <= (s.quarter > 4 ? 1 : s.quarter) ? ' active' : '');
+      qDots.appendChild(dot);
+    }
+
+    // Jump ball
+    document.getElementById('jump-tag').classList.toggle('visible', !!s.jumpBall);
 
     lastData = s;
   }
 
   function initOverlay() {
-    // ✅ FIX: connect จาก origin เดียวกับ server + เพิ่ม reconnection
-    const socket = io(SERVER_URL, {
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: Infinity,
-    });
-
+    const socket = io(SERVER_URL, { reconnection:true, reconnectionDelay:1000, reconnectionAttempts:Infinity });
     socket.on('stateUpdate', render);
-
-    // Fallback polling เมื่อ socket ไม่ได้เชื่อมต่อ
     setInterval(() => {
-      if (!socket.connected) {
-        fetch(SERVER_URL + '/api/state')
-          .then(r => r.json())
-          .then(render)
-          .catch(() => {});
-      }
-    }, 500);
+      if (!socket.connected) fetch(SERVER_URL+'/api/state').then(r=>r.json()).then(render).catch(()=>{});
+    }, 1000);
   }
 </script>
 </body>
