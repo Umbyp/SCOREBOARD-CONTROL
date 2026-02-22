@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Basketball Overlay</title>
+  <title>Basketball Overlay - Score Bug</title>
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Barlow+Condensed:wght@500;700;800&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,303 +12,213 @@
       background: transparent !important;
     }
 
-    /* ── MAIN CONTAINER ── */
-    #bar {
+    /* ── SCORE BUG CONTAINER (จัดให้อยู่ตรงกลางด้านบน) ── */
+    #score-bug {
       position: absolute;
-      top: 0; left: 0;
-      width: 1920px;
-      height: 110px; /* ✅ ปรับเป็น 110px ตรงตาม React */
+      top: 30px; /* ระยะห่างจากขอบบนจอ */
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── MAIN BAR ── */
+    #main-bar {
+      display: flex;
+      height: 70px;
+      background: rgba(18, 20, 28, 0.95);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      overflow: hidden;
+    }
+
+    /* ── TEAM BOX ── */
+    .team-box {
       display: flex;
       align-items: stretch;
-      overflow: hidden;
-      background: linear-gradient(180deg,#0d0e15 0%,#06070d 100%);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-top: none; /* ปกติวางชิดขอบบน */
-      box-shadow: 0 6px 30px rgba(0,0,0,0.8);
+      height: 100%;
     }
+    #box-a { flex-direction: row; }
+    #box-b { flex-direction: row-reverse; }
 
-    /* ── TEAM PANEL ── */
-    .team-panel {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      background: linear-gradient(180deg,#111219 0%,#080910 100%);
-    }
+    .color-strip { width: 6px; background: var(--tc); }
 
-    /* Top color strip */
-    .panel-accent {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 4px;
-      background: var(--tc);
-      z-index: 3;
-    }
-
-    /* Color flood from outer edge */
-    .panel-flood {
-      position: absolute; inset: 0;
-      z-index: 1;
-      pointer-events: none;
-    }
-    #panel-a .panel-flood {
-      background: linear-gradient(90deg, var(--fc) 0%, rgba(0,0,0,0) 45%);
-    }
-    #panel-b .panel-flood {
-      background: linear-gradient(270deg, var(--fc) 0%, rgba(0,0,0,0) 45%);
-    }
-
-    /* Grid micro-pattern */
-    .panel-grid {
-      position: absolute; inset: 0;
-      z-index: 2;
-      pointer-events: none;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
-      background-size: 36px 36px;
-    }
-
-    .panel-inner {
-      position: relative; z-index: 5;
-      width: 100%; height: 100%;
-      display: flex;
-      align-items: center;
-    }
-    #panel-a .panel-inner { flex-direction: row;         padding: 0 14px 0 22px; }
-    #panel-b .panel-inner { flex-direction: row-reverse; padding: 0 22px 0 14px; }
-
-    /* ── SCORE ── */
-    .score-num {
-      font-family: 'Oswald', sans-serif;
-      font-size: 68px; /* ✅ ลดขนาดให้เท่า React */
-      font-weight: 700;
-      line-height: 1;
-      color: var(--tc);
-      letter-spacing: -0.02em;
-      min-width: 95px;
-      text-align: center;
-      flex-shrink: 0;
-      text-shadow: 0 0 28px var(--tc), 0 3px 6px rgba(0,0,0,0.8);
-    }
-
-    /* ── TEAM INFO ── */
-    .info {
-      flex: 1;
+    .team-info {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: 0 12px;
+      padding: 0 16px;
+      min-width: 160px;
+      position: relative;
     }
-    #panel-b .info { align-items: flex-end; }
+    #box-a .team-info { align-items: flex-start; }
+    #box-b .team-info { align-items: flex-end; }
 
-    /* Name + poss */
-    .name-row {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-    }
-    #panel-b .name-row { flex-direction: row-reverse; }
+    .name-row { display: flex; align-items: center; gap: 8px; }
+    #box-b .name-row { flex-direction: row-reverse; }
 
     .poss {
       font-family: 'Oswald', sans-serif;
-      font-size: 18px;
+      font-size: 16px;
       color: var(--tc);
-      text-shadow: 0 0 12px var(--tc);
+      text-shadow: 0 0 8px var(--tc);
       opacity: 0;
     }
     .poss.on { opacity: 1; }
 
     .tname {
       font-family: 'Oswald', sans-serif;
-      font-size: 32px; /* ✅ ลดขนาดให้เท่า React */
+      font-size: 28px;
       font-weight: 700;
       color: #fff;
-      letter-spacing: 0.06em;
-      line-height: 1;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.7);
+      letter-spacing: 0.02em;
     }
 
-    /* Fouls */
-    .fouls-row {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      margin-top: 4px;
+    .meta-row {
+      display: flex; gap: 10px; align-items: center; margin-top: 2px;
     }
-    #panel-b .fouls-row { flex-direction: row-reverse; }
+    #box-b .meta-row { flex-direction: row-reverse; }
 
-    .fl {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-size: 12px; font-weight: 800;
-      letter-spacing: 0.1em;
-      color: rgba(255,255,255,0.4);
-    }
-    .fl-n {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-size: 12px; font-weight: 800;
-      color: #fff;
-    }
-    .fdots { display: flex; gap: 4px; }
-    .fd {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: rgba(255,255,255,0.1);
-    }
-    .fd.on { background: var(--dc); box-shadow: 0 0 5px var(--dc); }
+    .torow { display: flex; gap: 4px; }
+    .tp { width: 14px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); }
+    .tp.on { background: #fff; }
 
-    .btag {
+    /* ✅ เพิ่มกล่อง Team Fouls */
+    .foul-box { display: flex; align-items: baseline; gap: 4px; }
+    #box-b .foul-box { flex-direction: row-reverse; }
+    .foul-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.4); letter-spacing: 0.05em; }
+    .foul-num { font-family: 'Oswald', sans-serif; font-size: 14px; font-weight: 700; color: #fff; }
+
+    .bonus-tag {
       display: none;
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
-      padding: 1px 6px; border-radius: 3px;
+      font-size: 11px; font-weight: 800; color: #FFD700; letter-spacing: 0.05em;
     }
-    /* ✅ เอา animation ออก */
-    .btag.b { display:inline-block; color:#FFA500; background:rgba(255,165,0,0.15); border:1px solid rgba(255,165,0,0.5); }
-    .btag.d { display:inline-block; color:#FF3333; background:rgba(255,40,40,0.15);  border:1px solid rgba(255,40,40,0.5); }
+    .bonus-tag.on { display: block; }
 
-    /* Timeouts */
-    .torow { display: flex; gap: 5px; margin-top: 5px; }
-    #panel-b .torow { flex-direction: row-reverse; }
-    .tp {
-      width: 22px; height: 4px; border-radius: 2px;
-      background: rgba(255,255,255,0.1);
+    .score-area {
+      width: 85px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.4);
     }
-    .tp.on { background: var(--tc); box-shadow: 0 0 7px var(--tc); }
+    #box-a .score-area { border-right: 1px solid rgba(255,255,255,0.05); }
+    #box-b .score-area { border-left: 1px solid rgba(255,255,255,0.05); }
 
-    /* ── CENTER ── */
-    #center {
-      width: 210px; /* ✅ Fix width 210px ตาม React */
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
+    .score-num {
+      font-family: 'Oswald', sans-serif;
+      font-size: 52px; font-weight: 700; color: var(--tc);
+      line-height: 1; text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+
+    /* ── CENTER CLOCK ── */
+    #center-clock {
+      width: 140px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.6);
       position: relative;
-      background: linear-gradient(180deg, #0d0e15 0%, #06070d 100%);
-      border-left: 1px solid rgba(255,255,255,0.07);
-      border-right: 1px solid rgba(255,255,255,0.07);
-      z-index: 10;
-      padding: 10px 0;
     }
 
-    /* Jump ball */
     #jump {
       display: none;
-      position: absolute; top: 10px; right: 8px;
+      position: absolute; top: 2px;
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 10px; font-weight: 800; letter-spacing: 0.15em;
-      color: #FFD700;
-      /* ✅ เอา animation กระพริบออก */
+      font-size: 10px; font-weight: 800; color: #FFD700;
     }
     #jump.on { display: block; }
 
-    /* Quarter */
+    .clock-row { display: flex; align-items: baseline; gap: 8px; }
+
     #qlabel {
       font-family: 'Oswald', sans-serif;
-      font-size: 14px; font-weight: 700; letter-spacing: 0.25em;
-      color: #FFD700; line-height: 1;
+      font-size: 16px; font-weight: 700; color: #FFD700; letter-spacing: 0.1em;
     }
 
-    /* Main clock */
     #mclock {
       font-family: 'Oswald', sans-serif;
-      font-size: 48px; font-weight: 700;
-      line-height: 1;
-      color: #fff;
-      letter-spacing: 0.01em;
-      font-variant-numeric: tabular-nums;
+      font-size: 38px; font-weight: 700; color: #fff;
+      line-height: 1; font-variant-numeric: tabular-nums;
     }
-    /* ✅ เปลี่ยนแค่สี ไม่กระพริบ */
-    #mclock.running { text-shadow: 0 0 14px rgba(255,255,255,0.2); }
-    #mclock.expired { color: #FF2222; text-shadow: 0 0 24px rgba(255,20,20,0.9); }
+    #mclock.expired { color: #FF2222; }
 
-    /* Shot clock box */
-    #shotbox {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      background: rgba(0,0,0,0.3);
-      border: none; /* ✅ ไม่มีกรอบ */
-      border-radius: 7px;
-      padding: 2px 12px 2px;
-      margin-bottom: 6px;
+    /* ── SHOT CLOCK TAB (ห้อยลงมา) ── */
+    #shot-tab {
+      margin-top: -2px;
+      padding: 4px 18px;
+      background: rgba(30, 32, 40, 0.95);
+      border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1); border-top: none;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.5);
     }
-    #shotbox.urgent { background: rgba(255,20,20,0.15); }
+    #shot-tab.urgent { background: #FF2222; }
 
     #shotlbl {
       font-family: 'Barlow Condensed', sans-serif;
-      font-size: 11px; font-weight: 800; letter-spacing: 0.2em;
-      color: rgba(255,255,255,0.3);
+      font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.4);
     }
+    #shot-tab.urgent #shotlbl { color: #fff; }
+
     #shotval {
       font-family: 'Oswald', sans-serif;
-      font-size: 26px; font-weight: 700; line-height: 1;
-      color: #fff; font-variant-numeric: tabular-nums;
-      text-align: center;
+      font-size: 24px; font-weight: 700; color: #FFD700; line-height: 1;
     }
-    /* ✅ เปลี่ยนแค่สี ไม่กระพริบ */
-    #shotval.warn   { color: #FFA500; }
-    #shotval.urgent { color: #FF2222; }
+    #shot-tab.urgent #shotval { color: #fff; }
 
   </style>
 </head>
 <body>
 
-<div id="bar">
-  <div class="team-panel" id="panel-a" style="--tc:#FF6B35; --dc:#FF6B35; --fc:rgba(255,107,53,0.22);">
-    <div class="panel-accent"></div>
-    <div class="panel-grid"></div>
-    <div class="panel-flood"></div>
-    <div class="panel-inner">
-      <div class="score-num" id="sc-a">0</div>
-      <div class="info">
+<div id="score-bug">
+  
+  <div id="main-bar">
+    <div class="team-box" id="box-a" style="--tc:#FF6B35;">
+      <div class="color-strip"></div>
+      <div class="team-info">
         <div class="name-row">
           <div class="poss" id="poss-a">◀</div>
           <div class="tname" id="nm-a">HOME</div>
         </div>
-        <div class="fouls-row">
-          <span class="fl">FOULS</span>
-          <span class="fl-n" id="fn-a">0</span>
-          <div class="fdots" id="fd-a"></div>
-          <div class="btag" id="bt-a"></div>
+        <div class="meta-row">
+          <div class="torow" id="to-a"></div>
+          <div class="foul-box"><span class="foul-lbl">FOULS</span><span class="foul-num" id="fn-a">0</span></div>
+          <div class="bonus-tag" id="bt-a">BONUS</div>
         </div>
-        <div class="torow" id="to-a"></div>
+      </div>
+      <div class="score-area"><div class="score-num" id="sc-a">0</div></div>
+    </div>
+
+    <div id="center-clock">
+      <div id="jump">⊕ JUMP</div>
+      <div class="clock-row">
+        <div id="qlabel">Q1</div>
+        <div id="mclock">10:00</div>
       </div>
     </div>
-  </div>
 
-  <div id="center">
-    <div id="jump">⊕ JUMP</div>
-    <div id="qlabel">Q1</div>
-    <div id="mclock">10:00</div>
-    <div id="shotbox">
-      <span id="shotlbl">SHOT</span>
-      <span id="shotval">24</span>
-    </div>
-  </div>
-
-  <div class="team-panel" id="panel-b" style="--tc:#00D4FF; --dc:#00D4FF; --fc:rgba(0,212,255,0.22);">
-    <div class="panel-accent"></div>
-    <div class="panel-grid"></div>
-    <div class="panel-flood"></div>
-    <div class="panel-inner">
-      <div class="score-num" id="sc-b">0</div>
-      <div class="info">
+    <div class="team-box" id="box-b" style="--tc:#00D4FF;">
+      <div class="color-strip"></div>
+      <div class="team-info">
         <div class="name-row">
           <div class="poss" id="poss-b">▶</div>
           <div class="tname" id="nm-b">AWAY</div>
         </div>
-        <div class="fouls-row">
-          <span class="fl">FOULS</span>
-          <span class="fl-n" id="fn-b">0</span>
-          <div class="fdots" id="fd-b"></div>
-          <div class="btag" id="bt-b"></div>
+        <div class="meta-row">
+          <div class="torow" id="to-b"></div>
+          <div class="foul-box"><span class="foul-lbl">FOULS</span><span class="foul-num" id="fn-b">0</span></div>
+          <div class="bonus-tag" id="bt-b">BONUS</div>
         </div>
-        <div class="torow" id="to-b"></div>
       </div>
+      <div class="score-area"><div class="score-num" id="sc-b">0</div></div>
     </div>
   </div>
+
+  <div id="shot-tab">
+    <span id="shotlbl">SHOT</span>
+    <span id="shotval">24</span>
+  </div>
+
 </div>
 
 <script>
@@ -340,45 +250,21 @@
   function pad(n) { return String(n).padStart(2,'0'); }
   function qLabel(q) { return q <= 4 ? `Q${q}` : `OT${q-4}`; }
 
-  function hexToRgba(hex, a) {
-    let c = hex.replace('#','').split('');
-    if (c.length === 3) c = [c[0],c[0],c[1],c[1],c[2],c[2]];
-    const n = parseInt(c.join(''), 16);
-    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
-  }
-
   function updateTeam(px, team, isPoss) {
-    const panel = document.getElementById(`panel-${px}`);
-    const sEl   = document.getElementById(`sc-${px}`);
-
-    // Update CSS vars for colors
-    panel.style.setProperty('--tc', team.color);
-    panel.style.setProperty('--dc', team.teamFouls >= 5 ? '#FF3333' : team.color);
-    panel.style.setProperty('--fc', hexToRgba(team.color, 0.22));
-
-    // Score
-    sEl.textContent = team.score;
-
-    // Name
+    const box = document.getElementById(`box-${px}`);
+    box.style.setProperty('--tc', team.color);
+    
+    document.getElementById(`sc-${px}`).textContent = team.score;
     document.getElementById(`nm-${px}`).textContent = team.name;
 
-    // Fouls
-    document.getElementById(`fn-${px}`).textContent = team.teamFouls;
-    const fd = document.getElementById(`fd-${px}`);
-    fd.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
-      const d = document.createElement('div');
-      d.className = 'fd' + (i < Math.min(team.teamFouls, 5) ? ' on' : '');
-      fd.appendChild(d);
-    }
+    // ✅ อัปเดตตัวเลข Team Fouls ตรงนี้
+    const fn = document.getElementById(`fn-${px}`);
+    fn.textContent = team.teamFouls;
+    fn.style.color = team.teamFouls >= 5 ? '#FF3333' : '#FFF';
 
-    // Bonus
     const bt = document.getElementById(`bt-${px}`);
-    if (team.teamFouls >= 7) { bt.className='btag d'; bt.textContent='PENALTY'; }
-    else if (team.teamFouls >= 5) { bt.className='btag b'; bt.textContent='BONUS'; }
-    else { bt.className='btag'; }
+    bt.className = team.teamFouls >= 5 ? 'bonus-tag on' : 'bonus-tag';
 
-    // Timeouts
     const to = document.getElementById(`to-${px}`);
     to.innerHTML = '';
     for (let i = 0; i < 3; i++) {
@@ -387,7 +273,6 @@
       to.appendChild(p);
     }
 
-    // Possession
     document.getElementById(`poss-${px}`).classList.toggle('on', isPoss);
   }
 
@@ -397,27 +282,18 @@
     updateTeam('a', s.teamA, s.possession === 'teamA');
     updateTeam('b', s.teamB, s.possession === 'teamB');
 
-    // Game clock
     const cl = document.getElementById('mclock');
     cl.textContent = fmtMain(s.clockTenths);
-    cl.className = s.clockTenths <= 0 ? 'expired' : s.isRunning ? 'running' : '';
+    cl.className = s.clockTenths <= 0 ? 'expired' : '';
 
-    // Shot clock
-    const sb = document.getElementById('shotbox');
+    const stab = document.getElementById('shot-tab');
     const sv = document.getElementById('shotval');
-    const ss = s.shotClockTenths / 10;
     sv.textContent = fmtShot(s.shotClockTenths);
     
-    const isUrgent = ss <= 5 && s.shotClockTenths > 0;
-    const isWarn   = ss <= 10 && s.shotClockTenths > 0;
-    
-    sb.className = isUrgent ? 'urgent' : '';
-    sv.className = isUrgent ? 'urgent' : isWarn ? 'warn' : '';
+    const isUrgent = (s.shotClockTenths / 10) <= 5 && s.shotClockTenths > 0;
+    stab.className = isUrgent ? 'urgent' : '';
 
-    // Quarter
     document.getElementById('qlabel').textContent = qLabel(s.quarter);
-
-    // Jump
     document.getElementById('jump').classList.toggle('on', !!s.jumpBall);
   }
 
