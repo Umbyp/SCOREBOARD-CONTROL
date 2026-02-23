@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
+import TournamentBridge from "./TournamentBridge";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 
@@ -65,6 +66,15 @@ function formatShotClock(tenths) {
 
 function send(type, team, value) {
   socket.emit("action", { type, team, value });
+}
+
+// ─── Dynamic font size for team name ────────────────────────────────────────
+function getNameFontSize(name = "") {
+  const len = name.length;
+  if (len <= 8)  return 30;
+  if (len <= 12) return 22;
+  if (len <= 16) return 17;
+  return 13;
 }
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -148,23 +158,38 @@ function TeamCard({ team, teamKey }) {
   const saveName = () => { send("teamName", teamKey, nameInput.toUpperCase()); setEditing(false); };
   const S = (style) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...style });
 
+  // ── dynamic font size based on name length ──
+  const nameFontSize = getNameFontSize(team.name);
+
   return (
     <div style={{ background: "linear-gradient(160deg,#0d0d1b,#080810)", border: `1px solid ${color}22`, borderRadius: 20, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${color},transparent)` }} />
-      <div style={{ padding: "16px 20px 0", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ padding: "16px 20px 0", display: "flex", alignItems: "center", gap: 10, minHeight: 56 }}>
         <ColorPicker teamKey={teamKey} currentColor={color} />
         {editing ? (
-          <input autoFocus value={nameInput} maxLength={8}
+          <input autoFocus value={nameInput} maxLength={20}
             onChange={e => setNameInput(e.target.value.toUpperCase())}
             onBlur={saveName} onKeyDown={e => e.key === "Enter" && saveName()}
-            style={{ background: "none", border: "none", borderBottom: `2px solid ${color}`, outline: "none", color, ...S({ fontSize: 30, letterSpacing: "0.18em", width: 150 }) }} />
+            style={{
+              background: "none", border: "none",
+              borderBottom: `2px solid ${color}`, outline: "none", color,
+              ...S({ fontSize: getNameFontSize(nameInput), letterSpacing: "0.1em", width: 180 }),
+              transition: "font-size 0.15s",
+            }} />
         ) : (
-          <span onClick={() => setEditing(true)} style={{ color, cursor: "pointer", ...S({ fontSize: 30, letterSpacing: "0.18em", fontWeight: 900 }) }}>
+          <span
+            onClick={() => setEditing(true)}
+            style={{
+              color, cursor: "pointer", flex: 1, wordBreak: "break-word", lineHeight: 1.1,
+              ...S({ fontSize: nameFontSize, letterSpacing: nameFontSize < 20 ? "0.05em" : "0.12em", fontWeight: 900 }),
+              transition: "font-size 0.15s",
+            }}
+          >
             {team.name}
           </span>
         )}
-        <button onClick={() => setEditing(true)} style={{ background: "none", border: "none", cursor: "pointer", color, opacity: 0.3, fontSize: 13 }}>✏️</button>
-        <div style={{ marginLeft: "auto" }}><BonusBadge teamFouls={team.teamFouls} /></div>
+        <button onClick={() => setEditing(true)} style={{ background: "none", border: "none", cursor: "pointer", color, opacity: 0.3, fontSize: 13, flexShrink: 0 }}>✏️</button>
+        <div style={{ marginLeft: "auto", flexShrink: 0 }}><BonusBadge teamFouls={team.teamFouls} /></div>
       </div>
       <div style={{ textAlign: "center", padding: "4px 0 2px" }}>
         <div style={{ ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.88 }), color, textShadow: `0 0 70px ${color}44` }}>{team.score}</div>
@@ -360,39 +385,30 @@ function OverlayPreview({ state }) {
   const TeamBox = ({ team, tKey, flip }) => {
     const isPoss = possession === tKey;
     const hasBonus = team.teamFouls >= 5;
+    // Dynamic overlay font size
+    const overlayNameSize = team.name.length <= 8 ? 28 : team.name.length <= 14 ? 20 : 15;
     
     return (
       <div style={{ display: "flex", flexDirection: flip ? "row-reverse" : "row", alignItems: "stretch", height: "100%" }}>
-        {/* สีประจำทีมด้านข้าง */}
         <div style={{ width: 6, background: team.color }} />
-        
-        {/* ข้อมูลทีม */}
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 16px", minWidth: 160, alignItems: flip ? "flex-end" : "flex-start", position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexDirection: flip ? "row-reverse" : "row" }}>
             {isPoss && <span style={{ fontFamily: O, fontSize: 16, color: team.color, textShadow: `0 0 8px ${team.color}` }}>{flip ? "▶" : "◀"}</span>}
-            <span style={{ fontFamily: O, fontSize: 28, fontWeight: 700, color: "#FFF", letterSpacing: "0.02em" }}>{team.name}</span>
+            <span style={{ fontFamily: O, fontSize: overlayNameSize, fontWeight: 700, color: "#FFF", letterSpacing: "0.02em", lineHeight: 1.1 }}>{team.name}</span>
           </div>
-          
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 2, flexDirection: flip ? "row-reverse" : "row" }}>
-            {/* Timeouts */}
             <div style={{ display: "flex", gap: 4 }}>
               {[...Array(3)].map((_, i) => (
                 <div key={i} style={{ width: 14, height: 4, borderRadius: 2, background: i < team.timeouts ? "#FFF" : "rgba(255,255,255,0.15)" }} />
               ))}
             </div>
-
-            {/* ✅ เพิ่ม Team Fouls กลับเข้ามาตรงนี้ */}
             <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexDirection: flip ? "row-reverse" : "row" }}>
               <span style={{ fontFamily: BC, fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>FOULS</span>
               <span style={{ fontFamily: O, fontSize: 14, fontWeight: 700, color: team.teamFouls >= 5 ? "#FF3333" : "#FFF" }}>{team.teamFouls}</span>
             </div>
-
-            {/* Bonus Indicator */}
             {hasBonus && <div style={{ fontFamily: BC, fontSize: 11, fontWeight: 800, color: "#FFD700", letterSpacing: "0.05em" }}>BONUS</div>}
           </div>
         </div>
-
-        {/* คะแนน */}
         <div style={{ width: 85, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", borderLeft: flip ? "none" : "1px solid rgba(255,255,255,0.05)", borderRight: flip ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
           <span style={{ fontFamily: O, fontSize: 52, fontWeight: 700, color: team.color, lineHeight: 1, textShadow: `0 2px 10px rgba(0,0,0,0.5)` }}>{team.score}</span>
         </div>
@@ -402,32 +418,22 @@ function OverlayPreview({ state }) {
 
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
-      {/* Container หลัก */}
       <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        
-        {/* แถบ Scoreboard */}
         <div style={{ display: "flex", height: 70, background: "rgba(18, 20, 28, 0.95)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(0,0,0,0.6)", overflow: "hidden" }}>
           <TeamBox team={teamA} tKey="teamA" flip={false} />
-          
-          {/* ตรงกลาง (เวลา) */}
           <div style={{ width: 140, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", position: "relative" }}>
             {jumpBall && <div style={{ position: "absolute", top: 2, fontFamily: BC, fontSize: 10, fontWeight: 800, color: "#FFD700" }}>⊕ JUMP</div>}
-            
             <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
               <span style={{ fontFamily: O, fontSize: 16, fontWeight: 700, color: "#FFD700", letterSpacing: "0.1em" }}>{getQLabel(quarter)}</span>
               <span style={{ fontFamily: O, fontSize: 38, fontWeight: 700, color: gameTimeUp ? "#FF2222" : "#FFF", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{formatGameClock(clockTenths)}</span>
             </div>
           </div>
-          
           <TeamBox team={teamB} tKey="teamB" flip={true} />
         </div>
-
-        {/* Shot Clock ห้อยลงมาด้านล่าง */}
         <div style={{ marginTop: -2, padding: "4px 18px", background: shotUrgent ? "#FF2222" : "rgba(30, 32, 40, 0.95)", borderBottomLeftRadius: 8, borderBottomRightRadius: 8, border: "1px solid rgba(255,255,255,0.1)", borderTop: "none", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 5px 15px rgba(0,0,0,0.5)" }}>
           <span style={{ fontFamily: BC, fontSize: 12, fontWeight: 800, color: shotUrgent ? "#FFF" : "rgba(255,255,255,0.4)" }}>SHOT</span>
           <span style={{ fontFamily: O, fontSize: 24, fontWeight: 700, color: shotUrgent ? "#FFF" : "#FFD700", lineHeight: 1 }}>{formatShotClock(shotClockTenths)}</span>
         </div>
-
       </div>
     </div>
   );
@@ -447,12 +453,8 @@ export default function App() {
   const prevShotClock = useRef(state.shotClockTenths);
 
   useEffect(() => {
-    if (prevGameClock.current > 0 && state.clockTenths === 0) {
-      playBuzzer();
-    }
-    if (prevShotClock.current > 0 && state.shotClockTenths === 0) {
-      playHorn();
-    }
+    if (prevGameClock.current > 0 && state.clockTenths === 0) playBuzzer();
+    if (prevShotClock.current > 0 && state.shotClockTenths === 0) playHorn();
     prevGameClock.current = state.clockTenths;
     prevShotClock.current = state.shotClockTenths;
   }, [state.clockTenths, state.shotClockTenths]);
@@ -461,28 +463,12 @@ export default function App() {
     const handleKeyDown = (e) => {
       if (e.target.tagName === "INPUT") return;
       switch(e.code) {
-        case "Space":
-          e.preventDefault();
-          send("clockToggle");
-          break;
-        case "KeyC":
-          e.preventDefault();
-          send("shotClockToggle");
-          break;
-        case "KeyZ":
-          e.preventDefault();
-          send("shotClockSet", null, 24);
-          break;
-        case "KeyX":
-          e.preventDefault();
-          send("shotClockSet", null, 14);
-          break;
-        case "KeyH":
-          e.preventDefault();
-          playHorn();
-          break;
-        default:
-          break;
+        case "Space": e.preventDefault(); send("clockToggle"); break;
+        case "KeyC":  e.preventDefault(); send("shotClockToggle"); break;
+        case "KeyZ":  e.preventDefault(); send("shotClockSet", null, 24); break;
+        case "KeyX":  e.preventDefault(); send("shotClockSet", null, 14); break;
+        case "KeyH":  e.preventDefault(); playHorn(); break;
+        default: break;
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -494,19 +480,13 @@ export default function App() {
     socket.on("disconnect", () => setConnected(false));
     socket.on("stateUpdate", (s) => {
       if (!s || !s.teamA) return;
-      setState({
-        ...s,
-        teamA: { techFouls: 0, ...s.teamA },
-        teamB: { techFouls: 0, ...s.teamB },
-      });
+      setState({ ...s, teamA: { techFouls: 0, ...s.teamA }, teamB: { techFouls: 0, ...s.teamB } });
     });
     return () => { socket.off("stateUpdate"); socket.off("connect"); socket.off("disconnect"); };
   }, []);
 
-  const enableAudioContext = () => unlockAudio();
-
   return (
-    <div onClick={enableAudioContext} style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 25% 0%,#13101e,#080810 55%)", padding: 14, fontFamily: "system-ui,sans-serif" }}>
+    <div onClick={unlockAudio} style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 25% 0%,#13101e,#080810 55%)", padding: 14, fontFamily: "system-ui,sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
         button { font-family:'Bebas Neue',Impact,sans-serif; outline:none; }
@@ -548,7 +528,7 @@ export default function App() {
       </div>
 
       <div style={{ height: 1, background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)", marginBottom: 12 }} />
-
+      <TournamentBridge state={state} send={send} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 304px 1fr", gap: 12, maxWidth: 1400, margin: "0 auto" }}>
         <TeamCard team={state.teamA} teamKey="teamA" />
         <CenterCol state={state} />
