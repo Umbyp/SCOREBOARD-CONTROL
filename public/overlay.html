@@ -12,10 +12,10 @@
       background: transparent !important;
     }
 
-    /* ── SCORE BUG CONTAINER ── */
+    /* ── SCORE BUG CONTAINER (จัดให้อยู่ตรงกลางด้านบน) ── */
     #score-bug {
       position: absolute;
-      top: 30px; 
+      top: 30px; /* ระยะห่างจากขอบบนจอ */
       left: 50%;
       transform: translateX(-50%);
       display: flex;
@@ -43,30 +43,20 @@
     #box-a { flex-direction: row; }
     #box-b { flex-direction: row-reverse; }
 
-    .color-strip { width: 6px; background: var(--tc); flex-shrink: 0; }
+    .color-strip { width: 6px; background: var(--tc); }
 
-    /* ✅ ล็อคความกว้างกล่องตรงนี้ เพื่อให้ซ้ายขวาสมมาตรและไม่พัง */
     .team-info {
       display: flex;
       flex-direction: column;
       justify-content: center;
       padding: 0 16px;
-      width: 270px; /* บังคับความกว้างกล่องชื่อทีม */
+      min-width: 160px;
       position: relative;
-      overflow: hidden;
     }
     #box-a .team-info { align-items: flex-start; }
-    #box-b .team-info { align-items: flex-end; text-align: right; }
+    #box-b .team-info { align-items: flex-end; }
 
-    /* ✅ ล็อคแถวชื่อทีม */
-    .name-row { 
-      display: flex; 
-      align-items: center; 
-      gap: 8px; 
-      height: 35px; 
-      width: 100%;
-      overflow: hidden;
-    }
+    .name-row { display: flex; align-items: center; gap: 8px; }
     #box-b .name-row { flex-direction: row-reverse; }
 
     .poss {
@@ -75,23 +65,15 @@
       color: var(--tc);
       text-shadow: 0 0 8px var(--tc);
       opacity: 0;
-      flex-shrink: 0;
     }
     .poss.on { opacity: 1; }
 
-    /* ✅ บังคับห้ามตัดคำ และใส่ ... เมื่อล้น */
     .tname {
       font-family: 'Oswald', sans-serif;
-      font-size: 28px; 
+      font-size: 28px;
       font-weight: 700;
       color: #fff;
       letter-spacing: 0.02em;
-      line-height: 1.1;
-      white-space: nowrap !important; /* ห้ามขึ้นบรรทัดใหม่เด็ดขาด */
-      overflow: hidden;
-      text-overflow: ellipsis; /* ใส่ ... ถ้าชื่อยาวเกินกล่อง */
-      transition: font-size 0.2s ease;
-      width: 100%;
     }
 
     .meta-row {
@@ -103,6 +85,7 @@
     .tp { width: 14px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); }
     .tp.on { background: #fff; }
 
+    /* ✅ เพิ่มกล่อง Team Fouls */
     .foul-box { display: flex; align-items: baseline; gap: 4px; }
     #box-b .foul-box { flex-direction: row-reverse; }
     .foul-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.4); letter-spacing: 0.05em; }
@@ -119,7 +102,6 @@
       width: 85px;
       display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.4);
-      flex-shrink: 0;
     }
     #box-a .score-area { border-right: 1px solid rgba(255,255,255,0.05); }
     #box-b .score-area { border-left: 1px solid rgba(255,255,255,0.05); }
@@ -136,7 +118,6 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.6);
       position: relative;
-      flex-shrink: 0;
     }
 
     #jump {
@@ -161,7 +142,7 @@
     }
     #mclock.expired { color: #FF2222; }
 
-    /* ── SHOT CLOCK TAB ── */
+    /* ── SHOT CLOCK TAB (ห้อยลงมา) ── */
     #shot-tab {
       margin-top: -2px;
       padding: 4px 18px;
@@ -241,7 +222,7 @@
 </div>
 
 <script>
-  // ✅ เปลี่ยน URL ตรงนี้ให้เป็น URL ของ Backend Render
+  // ✅ เปลี่ยน URL ตรงนี้ให้เป็น URL ของ Backend Render ที่คุณใช้งาน
   const SERVER_URL = "https://scoreboard-control.onrender.com"; 
 </script>
 <script id="sl"></script>
@@ -269,24 +250,14 @@
   function pad(n) { return String(n).padStart(2,'0'); }
   function qLabel(q) { return q <= 4 ? `Q${q}` : `OT${q-4}`; }
 
-  // ✅ ฟังก์ชันคำนวณขนาดฟอนต์บน Overlay ปรับให้เล็กลงนิดนึงสำหรับกล่อง 270px
-  function getOverlayFontSize(name) {
-    const len = name ? name.length : 0;
-    if (len <= 10) return "28px";
-    if (len <= 15) return "22px";
-    return "18px";
-  }
-
   function updateTeam(px, team, isPoss) {
     const box = document.getElementById(`box-${px}`);
     box.style.setProperty('--tc', team.color);
     
     document.getElementById(`sc-${px}`).textContent = team.score;
-    
-    const nmEl = document.getElementById(`nm-${px}`);
-    nmEl.textContent = team.name;
-    nmEl.style.fontSize = getOverlayFontSize(team.name);
+    document.getElementById(`nm-${px}`).textContent = team.name;
 
+    // ✅ อัปเดตตัวเลข Team Fouls ตรงนี้
     const fn = document.getElementById(`fn-${px}`);
     fn.textContent = team.teamFouls;
     fn.style.color = team.teamFouls >= 5 ? '#FF3333' : '#FFF';
