@@ -2,20 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Basketball Overlay - Score Bug</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Basketball Overlay - Score Bug Pro</title>
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Barlow+Condensed:wght@500;700;800&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    /* สำหรับใช้ใน OBS Browser Source (1920x1080) */
     html, body {
-      width: 1920px; height: 1080px;
+      width: 1920px; 
+      height: 1080px;
       overflow: hidden;
-      background: transparent !important;
+      background: transparent !important; /* พื้นหลังใส */
     }
 
-    /* ── SCORE BUG CONTAINER (จัดให้อยู่ตรงกลางด้านบน) ── */
     #score-bug {
       position: absolute;
-      top: 30px; /* ระยะห่างจากขอบบนจอ */
+      top: 40px; 
       left: 50%;
       transform: translateX(-50%);
       display: flex;
@@ -23,7 +26,7 @@
       align-items: center;
     }
 
-    /* ── MAIN BAR ── */
+    /* MAIN BAR */
     #main-bar {
       display: flex;
       height: 70px;
@@ -34,7 +37,7 @@
       overflow: hidden;
     }
 
-    /* ── TEAM BOX ── */
+    /* TEAM BOX */
     .team-box {
       display: flex;
       align-items: stretch;
@@ -64,16 +67,19 @@
       font-size: 16px;
       color: var(--tc);
       text-shadow: 0 0 8px var(--tc);
-      opacity: 0;
+      visibility: hidden; /* ใช้ visibility แทน opacity เพื่อรักษาระยะ */
     }
-    .poss.on { opacity: 1; }
+    .poss.on { visibility: visible; }
 
     .tname {
       font-family: 'Oswald', sans-serif;
-      font-size: 28px;
+      /* Font size จะถูกคุมโดย JavaScript */
       font-weight: 700;
       color: #fff;
       letter-spacing: 0.02em;
+      line-height: 1.1;
+      white-space: nowrap;
+      transition: font-size 0.2s ease;
     }
 
     .meta-row {
@@ -85,7 +91,6 @@
     .tp { width: 14px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); }
     .tp.on { background: #fff; }
 
-    /* ✅ เพิ่มกล่อง Team Fouls */
     .foul-box { display: flex; align-items: baseline; gap: 4px; }
     #box-b .foul-box { flex-direction: row-reverse; }
     .foul-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.4); letter-spacing: 0.05em; }
@@ -112,7 +117,7 @@
       line-height: 1; text-shadow: 0 2px 10px rgba(0,0,0,0.5);
     }
 
-    /* ── CENTER CLOCK ── */
+    /* CENTER CLOCK */
     #center-clock {
       width: 140px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -142,7 +147,7 @@
     }
     #mclock.expired { color: #FF2222; }
 
-    /* ── SHOT CLOCK TAB (ห้อยลงมา) ── */
+    /* SHOT CLOCK TAB */
     #shot-tab {
       margin-top: -2px;
       padding: 4px 18px;
@@ -151,6 +156,7 @@
       border: 1px solid rgba(255,255,255,0.1); border-top: none;
       display: flex; align-items: center; gap: 8px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+      transition: background 0.3s;
     }
     #shot-tab.urgent { background: #FF2222; }
 
@@ -171,18 +177,20 @@
 <body>
 
 <div id="score-bug">
-  
   <div id="main-bar">
     <div class="team-box" id="box-a" style="--tc:#FF6B35;">
       <div class="color-strip"></div>
       <div class="team-info">
         <div class="name-row">
           <div class="poss" id="poss-a">◀</div>
-          <div class="tname" id="nm-a">HOME</div>
+          <div class="tname" id="nm-a">HOME TEAM</div>
         </div>
         <div class="meta-row">
           <div class="torow" id="to-a"></div>
-          <div class="foul-box"><span class="foul-lbl">FOULS</span><span class="foul-num" id="fn-a">0</span></div>
+          <div class="foul-box">
+            <span class="foul-lbl">FOULS</span>
+            <span class="foul-num" id="fn-a">0</span>
+          </div>
           <div class="bonus-tag" id="bt-a">BONUS</div>
         </div>
       </div>
@@ -202,11 +210,14 @@
       <div class="team-info">
         <div class="name-row">
           <div class="poss" id="poss-b">▶</div>
-          <div class="tname" id="nm-b">AWAY</div>
+          <div class="tname" id="nm-b">AWAY TEAM</div>
         </div>
         <div class="meta-row">
           <div class="torow" id="to-b"></div>
-          <div class="foul-box"><span class="foul-lbl">FOULS</span><span class="foul-num" id="fn-b">0</span></div>
+          <div class="foul-box">
+            <span class="foul-lbl">FOULS</span>
+            <span class="foul-num" id="fn-b">0</span>
+          </div>
           <div class="bonus-tag" id="bt-b">BONUS</div>
         </div>
       </div>
@@ -218,28 +229,32 @@
     <span id="shotlbl">SHOT</span>
     <span id="shotval">24</span>
   </div>
-
 </div>
 
 <script>
-  // ✅ เปลี่ยน URL ตรงนี้ให้เป็น URL ของ Backend Render ที่คุณใช้งาน
+  // ✅ เปลี่ยน URL ตรงนี้ให้เป็น URL ของ Backend คุณ
   const SERVER_URL = "https://scoreboard-control.onrender.com"; 
 </script>
-<script id="sl"></script>
-<script>
-  document.getElementById("sl").src = SERVER_URL + "/socket.io/socket.io.js";
-  document.getElementById("sl").onload = init;
 
+<script id="socket-script"></script>
+
+<script>
+  document.getElementById("socket-script").src = SERVER_URL + "/socket.io/socket.io.js";
+  document.getElementById("socket-script").onload = init;
+
+  // ฟอร์แมตเวลาตัวหลัก (10:00 หรือ 59.9)
   function fmtMain(t) {
     t = Math.max(0, t);
-    if (t > 600) {
+    if (t > 600) { // มากกว่า 1 นาที
       const s = Math.floor(t/10);
-      return pad(Math.floor(s/60)) + ':' + pad(s%60);
+      return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0');
     }
     const s = Math.floor(t / 10);
     const frac = Math.floor(t % 10);
-    return pad(s) + '.' + frac;
+    return s + '.' + frac;
   }
+
+  // ฟอร์แมตเวลา Shot Clock (24 หรือ 4.5)
   function fmtShot(t) {
     t = Math.max(0, t);
     if (t > 100) return String(Math.ceil(t/10));
@@ -247,24 +262,32 @@
     const frac = Math.floor(t % 10);
     return s + '.' + frac;
   }
-  function pad(n) { return String(n).padStart(2,'0'); }
+
   function qLabel(q) { return q <= 4 ? `Q${q}` : `OT${q-4}`; }
 
   function updateTeam(px, team, isPoss) {
     const box = document.getElementById(`box-${px}`);
     box.style.setProperty('--tc', team.color);
     
+    // อัปเดตคะแนน
     document.getElementById(`sc-${px}`).textContent = team.score;
-    document.getElementById(`nm-${px}`).textContent = team.name;
+    document.getElementById(`sc-${px}`).style.color = team.color;
 
-    // ✅ อัปเดตตัวเลข Team Fouls ตรงนี้
+    // อัปเดตชื่อทีม + Dynamic Font Size
+    const nameEl = document.getElementById(`nm-${px}`);
+    nameEl.textContent = team.name;
+    const len = team.name.length;
+    if (len <= 8) nameEl.style.fontSize = "28px";
+    else if (len <= 14) nameEl.style.fontSize = "20px";
+    else nameEl.style.fontSize = "15px";
+
+    // อัปเดต Team Fouls & Bonus
     const fn = document.getElementById(`fn-${px}`);
     fn.textContent = team.teamFouls;
     fn.style.color = team.teamFouls >= 5 ? '#FF3333' : '#FFF';
+    document.getElementById(`bt-${px}`).className = team.teamFouls >= 5 ? 'bonus-tag on' : 'bonus-tag';
 
-    const bt = document.getElementById(`bt-${px}`);
-    bt.className = team.teamFouls >= 5 ? 'bonus-tag on' : 'bonus-tag';
-
+    // อัปเดต Timeouts
     const to = document.getElementById(`to-${px}`);
     to.innerHTML = '';
     for (let i = 0; i < 3; i++) {
@@ -273,7 +296,9 @@
       to.appendChild(p);
     }
 
-    document.getElementById(`poss-${px}`).classList.toggle('on', isPoss);
+    // อัปเดตทิศทางลูกศรครองบอล
+    const pArrow = document.getElementById(`poss-${px}`);
+    pArrow.classList.toggle('on', isPoss);
   }
 
   function render(s) {
@@ -282,27 +307,41 @@
     updateTeam('a', s.teamA, s.possession === 'teamA');
     updateTeam('b', s.teamB, s.possession === 'teamB');
 
+    // อัปเดตนาฬิกาหลัก
     const cl = document.getElementById('mclock');
     cl.textContent = fmtMain(s.clockTenths);
     cl.className = s.clockTenths <= 0 ? 'expired' : '';
 
+    // อัปเดต Shot Clock
     const stab = document.getElementById('shot-tab');
     const sv = document.getElementById('shotval');
     sv.textContent = fmtShot(s.shotClockTenths);
     
     const isUrgent = (s.shotClockTenths / 10) <= 5 && s.shotClockTenths > 0;
-    stab.className = isUrgent ? 'urgent' : '';
+    stab.classList.toggle('urgent', isUrgent);
 
+    // Quarter & Jump Ball
     document.getElementById('qlabel').textContent = qLabel(s.quarter);
     document.getElementById('jump').classList.toggle('on', !!s.jumpBall);
   }
 
   function init() {
-    const sk = io(SERVER_URL, { reconnection:true, reconnectionDelay:1000, reconnectionAttempts:Infinity });
-    sk.on('stateUpdate', render);
+    const socket = io(SERVER_URL, { 
+      reconnection: true, 
+      reconnectionDelay: 1000 
+    });
+
+    socket.on('stateUpdate', render);
+
+    // Fallback กรณี Socket หลุด (Polling)
     setInterval(() => {
-      if (!sk.connected) fetch(SERVER_URL+'/api/state').then(r=>r.json()).then(render).catch(()=>{});
-    }, 1000);
+      if (!socket.connected) {
+        fetch(SERVER_URL + '/api/state')
+          .then(r => r.json())
+          .then(render)
+          .catch(() => {});
+      }
+    }, 2000);
   }
 </script>
 </body>
