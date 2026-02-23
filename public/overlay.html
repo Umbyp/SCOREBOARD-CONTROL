@@ -56,7 +56,7 @@
     #box-a .team-info { align-items: flex-start; }
     #box-b .team-info { align-items: flex-end; }
 
-    .name-row { display: flex; align-items: center; gap: 8px; }
+    .name-row { display: flex; align-items: center; gap: 8px; height: 35px; } /* Fix height to prevent jumping */
     #box-b .name-row { flex-direction: row-reverse; }
 
     .poss {
@@ -70,10 +70,13 @@
 
     .tname {
       font-family: 'Oswald', sans-serif;
-      font-size: 28px;
+      font-size: 28px; /* Default size */
       font-weight: 700;
       color: #fff;
       letter-spacing: 0.02em;
+      line-height: 1.1;
+      white-space: nowrap;
+      transition: font-size 0.2s ease;
     }
 
     .meta-row {
@@ -250,12 +253,24 @@
   function pad(n) { return String(n).padStart(2,'0'); }
   function qLabel(q) { return q <= 4 ? `Q${q}` : `OT${q-4}`; }
 
+  // ✅ ฟังก์ชันคำนวณขนาดฟอนต์บน Overlay 
+  function getOverlayFontSize(name) {
+    const len = name ? name.length : 0;
+    if (len <= 8) return "28px";
+    if (len <= 14) return "20px";
+    return "15px";
+  }
+
   function updateTeam(px, team, isPoss) {
     const box = document.getElementById(`box-${px}`);
     box.style.setProperty('--tc', team.color);
     
     document.getElementById(`sc-${px}`).textContent = team.score;
-    document.getElementById(`nm-${px}`).textContent = team.name;
+    
+    // ✅ อัปเดตชื่อทีมและปรับขนาดฟอนต์อัตโนมัติ
+    const nmEl = document.getElementById(`nm-${px}`);
+    nmEl.textContent = team.name;
+    nmEl.style.fontSize = getOverlayFontSize(team.name);
 
     // ✅ อัปเดตตัวเลข Team Fouls ตรงนี้
     const fn = document.getElementById(`fn-${px}`);
