@@ -11,8 +11,8 @@ const socket = io(SOCKET_URL, {
 });
 
 // ─── Sounds ──────────────────────────────────────────────────────────────────
-const hornAudio   = typeof Audio !== "undefined" ? new Audio("https://actions.google.com/sounds/v1/alarms/air_horn.ogg") : null;
-const buzzerAudio = typeof Audio !== "undefined" ? new Audio("https://actions.google.com/sounds/v1/alarms/buzzer_alarm.ogg") : null;
+const hornAudio   = typeof Audio !== "undefined" ? new Audio("/horn.mp3") : null;
+const buzzerAudio = typeof Audio !== "undefined" ? new Audio("/horn.mp3") : null;
 if (hornAudio)   { hornAudio.preload   = "auto"; hornAudio.volume   = 0.8; }
 if (buzzerAudio) { buzzerAudio.preload = "auto"; buzzerAudio.volume = 1.0; }
 
