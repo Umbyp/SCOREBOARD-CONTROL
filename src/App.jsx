@@ -25,20 +25,16 @@ function unlockAudio() {
     a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
   });
 }
-
 const playHorn = () => {
   if (!hornAudio) return;
   unlockAudio();
-  hornAudio.currentTime = 0;
-  hornAudio.volume = 0.8;
+  hornAudio.currentTime = 0; hornAudio.volume = 0.8;
   hornAudio.play().catch(() => {});
 };
-
 const playBuzzer = () => {
   if (!buzzerAudio) return;
   unlockAudio();
-  buzzerAudio.currentTime = 0;
-  buzzerAudio.volume = 1.0;
+  buzzerAudio.currentTime = 0; buzzerAudio.volume = 1.0;
   buzzerAudio.play().catch(() => {});
 };
 
@@ -68,13 +64,19 @@ function send(type, team, value) {
   socket.emit("action", { type, team, value });
 }
 
-// ─── Dynamic font size for team name ────────────────────────────────────────
 function getNameFontSize(name = "") {
   const len = name.length;
   if (len <= 8)  return 30;
   if (len <= 12) return 22;
   if (len <= 16) return 17;
   return 13;
+}
+
+// ─── FIX: Timeout per half ────────────────────────────────────────────────────
+// ตาม FIBA: 2 timeouts ต่อครึ่ง, 1 timeout ต่อ OT period
+function getTimeoutMax(quarter) {
+  if (quarter >= 5) return 1;  // OT แต่ละ period = 1 timeout
+  return 2;                    // Q1-Q4 (นับ per half) = 2 ต่อครึ่ง
 }
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -92,27 +94,41 @@ function BonusBadge({ teamFouls }) {
   return null;
 }
 
+// ─── FIX: FoulDots แสดง 10 จุด (2 แถว × 5) ───────────────────────────────────
+// เดิมแสดงแค่ 5 จุด ทำให้ไม่เห็น double bonus (foul > 5) บน UI
 function FoulDots({ count, color }) {
-  const dotColor = count >= 10 ? "#FF3333" : count >= 5 ? "#FFA500" : color;
   return (
-    <div style={{ display: "flex", gap: 6 }}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} style={{
-          width: 20, height: 20, borderRadius: "50%",
-          background: i < Math.min(count, 5) ? dotColor : "rgba(255,255,255,0.06)",
-          border: `1.5px solid ${i < Math.min(count, 5) ? dotColor : "rgba(255,255,255,0.1)"}`,
-          boxShadow: i < Math.min(count, 5) ? `0 0 7px ${dotColor}88` : "none",
-          transition: "all 0.2s", transform: i < Math.min(count, 5) ? "scale(1)" : "scale(0.82)",
-        }} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {[0, 1].map(row => (
+        <div key={row} style={{ display: "flex", gap: 6 }}>
+          {Array.from({ length: 5 }).map((_, col) => {
+            const idx    = row * 5 + col;
+            const active = idx < count;
+            // จุดที่ 6-10 = double bonus → แดง, จุดที่ 1-5 = bonus → ส้ม/สีทีม
+            const dotC   = active && idx >= 5 ? "#FF3333"
+                         : active && count >= 5 ? "#FFA500"
+                         : color;
+            return (
+              <div key={col} style={{
+                width: 18, height: 18, borderRadius: "50%",
+                background:  active ? dotC : "rgba(255,255,255,0.06)",
+                border: `1.5px solid ${active ? dotC : "rgba(255,255,255,0.1)"}`,
+                boxShadow:   active ? `0 0 7px ${dotC}88` : "none",
+                transition: "all 0.2s",
+                transform:   active ? "scale(1)" : "scale(0.82)",
+              }} />
+            );
+          })}
+        </div>
       ))}
     </div>
   );
 }
 
-function TimeoutPips({ count, color }) {
+function TimeoutPips({ count, max = 2, color }) {
   return (
     <div style={{ display: "flex", gap: 5 }}>
-      {Array.from({ length: 2 }).map((_, i) => (
+      {Array.from({ length: max }).map((_, i) => (
         <div key={i} style={{
           width: 11, height: 11, borderRadius: "50%",
           background: i < count ? color : "rgba(255,255,255,0.06)",
@@ -151,14 +167,13 @@ function ColorPicker({ teamKey, currentColor }) {
 }
 
 // ─── Team Card ────────────────────────────────────────────────────────────────
-function TeamCard({ team, teamKey }) {
+function TeamCard({ team, teamKey, quarter }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(team.name);
-  const color = team.color;
-  const saveName = () => { send("teamName", teamKey, nameInput.toUpperCase()); setEditing(false); };
+  const color      = team.color;
+  const timeoutMax = getTimeoutMax(quarter);
+  const saveName   = () => { send("teamName", teamKey, nameInput.toUpperCase()); setEditing(false); };
   const S = (style) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...style });
-
-  // ── dynamic font size based on name length ──
   const nameFontSize = getNameFontSize(team.name);
 
   return (
@@ -177,23 +192,24 @@ function TeamCard({ team, teamKey }) {
               transition: "font-size 0.15s",
             }} />
         ) : (
-          <span
-            onClick={() => setEditing(true)}
-            style={{
-              color, cursor: "pointer", flex: 1, wordBreak: "break-word", lineHeight: 1.1,
-              ...S({ fontSize: nameFontSize, letterSpacing: nameFontSize < 20 ? "0.05em" : "0.12em", fontWeight: 900 }),
-              transition: "font-size 0.15s",
-            }}
-          >
+          <span onClick={() => setEditing(true)} style={{
+            color, cursor: "pointer", flex: 1, wordBreak: "break-word", lineHeight: 1.1,
+            ...S({ fontSize: nameFontSize, letterSpacing: nameFontSize < 20 ? "0.05em" : "0.12em", fontWeight: 900 }),
+            transition: "font-size 0.15s",
+          }}>
             {team.name}
           </span>
         )}
         <button onClick={() => setEditing(true)} style={{ background: "none", border: "none", cursor: "pointer", color, opacity: 0.3, fontSize: 13, flexShrink: 0 }}>✏️</button>
         <div style={{ marginLeft: "auto", flexShrink: 0 }}><BonusBadge teamFouls={team.teamFouls} /></div>
       </div>
+
       <div style={{ textAlign: "center", padding: "4px 0 2px" }}>
-        <div style={{ ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.88 }), color, textShadow: `0 0 70px ${color}44` }}>{team.score}</div>
+        <div style={{ ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.88 }), color, textShadow: `0 0 70px ${color}44` }}>
+          {team.score}
+        </div>
       </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7, padding: "0 14px 14px" }}>
         {[1, 2, 3].map(v => (
           <button key={v} onClick={() => send("score", teamKey, v)} className="btn-scale"
@@ -206,13 +222,19 @@ function TeamCard({ team, teamKey }) {
           -1
         </button>
       </div>
+
       <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 14px" }} />
+
       <div style={{ padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {/* Team Fouls */}
         <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 12, padding: "10px 12px", border: `1px solid ${team.teamFouls >= 10 ? "rgba(255,40,40,0.3)" : team.teamFouls >= 5 ? "rgba(255,140,0,0.25)" : "rgba(255,255,255,0.05)"}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <div style={{ ...S({ fontSize: 10, letterSpacing: "0.4em" }), color: "rgba(255,255,255,0.3)" }}>TEAM FOULS</div>
-            <div style={{ ...S({ fontSize: 30, fontWeight: 900, lineHeight: 1 }), color: team.teamFouls >= 10 ? "#FF3333" : team.teamFouls >= 5 ? "#FFA500" : "rgba(255,255,255,0.7)" }}>{team.teamFouls}</div>
+            <div style={{ ...S({ fontSize: 30, fontWeight: 900, lineHeight: 1 }), color: team.teamFouls >= 10 ? "#FF3333" : team.teamFouls >= 5 ? "#FFA500" : "rgba(255,255,255,0.7)" }}>
+              {team.teamFouls}
+            </div>
           </div>
+          {/* FIX: ใช้ FoulDots ที่แสดง 10 จุด แทนของเดิม 5 จุด */}
           <FoulDots count={team.teamFouls} color={color} />
           <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
             <button onClick={() => send("teamFoul", teamKey, 1)} style={{ flex: 1, ...S({ fontSize: 13 }), background: "rgba(255,50,50,0.08)", border: "1px solid rgba(255,50,50,0.2)", color: "#FF9090", padding: "7px 0", borderRadius: 8, cursor: "pointer" }}>+ FOUL</button>
@@ -220,15 +242,39 @@ function TeamCard({ team, teamKey }) {
             <button onClick={() => send("teamFoulReset", teamKey)} style={{ ...S({ fontSize: 13 }), background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.2)", padding: "7px 12px", borderRadius: 8, cursor: "pointer" }}>CLR</button>
           </div>
         </div>
+
+        {/* Timeouts */}
         <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 12, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.05)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <div style={{ ...S({ fontSize: 10, letterSpacing: "0.4em" }), color: "rgba(255,255,255,0.3)" }}>TIMEOUTS</div>
-            <div style={{ ...S({ fontSize: 30, fontWeight: 900, lineHeight: 1 }), color: "rgba(255,255,255,0.75)" }}>{team.timeouts}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+            <div>
+              <div style={{ ...S({ fontSize: 10, letterSpacing: "0.4em" }), color: "rgba(255,255,255,0.3)" }}>TIMEOUTS</div>
+              {/* FIX: แสดง per-half label */}
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.18)", fontFamily: "system-ui", marginTop: 1 }}>
+                {quarter <= 2 ? "Q1–Q2 (Half 1)" : quarter <= 4 ? "Q3–Q4 (Half 2)" : `OT${quarter - 4}`}
+              </div>
+            </div>
+            <div style={{ ...S({ fontSize: 30, fontWeight: 900, lineHeight: 1 }), color: "rgba(255,255,255,0.75)" }}>
+              {team.timeouts}
+            </div>
           </div>
-          <TimeoutPips count={team.timeouts} color={color} />
+          {/* FIX: pass max ให้ TimeoutPips รู้จำนวนจุดที่ต้องแสดง */}
+          <TimeoutPips count={team.timeouts} max={timeoutMax} color={color} />
           <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
-            <button onClick={() => { send("timeout", teamKey, -1); playHorn(); }} disabled={team.timeouts <= 0} style={{ flex: 1, ...S({ fontSize: 13 }), background: `${color}10`, border: `1px solid ${color}30`, color, padding: "7px 0", borderRadius: 8, cursor: "pointer", opacity: team.timeouts <= 0 ? 0.25 : 1 }}>USE T.O.</button>
-            <button onClick={() => send("timeout", teamKey, 1)} disabled={team.timeouts >= 2} style={{ ...S({ fontSize: 13 }), background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", padding: "7px 16px", borderRadius: 8, cursor: "pointer", opacity: team.timeouts >= 2 ? 0.25 : 1 }}>+1</button>
+            <button
+              onClick={() => { send("timeout", teamKey, -1); playHorn(); }}
+              disabled={team.timeouts <= 0}
+              style={{ flex: 1, ...S({ fontSize: 13 }), background: `${color}10`, border: `1px solid ${color}30`, color, padding: "7px 0", borderRadius: 8, cursor: "pointer", opacity: team.timeouts <= 0 ? 0.25 : 1 }}
+            >
+              USE T.O.
+            </button>
+            {/* FIX: cap disabled ตาม timeoutMax ของ period นั้นๆ */}
+            <button
+              onClick={() => send("timeout", teamKey, 1)}
+              disabled={team.timeouts >= timeoutMax}
+              style={{ ...S({ fontSize: 13 }), background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", padding: "7px 16px", borderRadius: 8, cursor: "pointer", opacity: team.timeouts >= timeoutMax ? 0.25 : 1 }}
+            >
+              +1
+            </button>
           </div>
         </div>
       </div>
@@ -239,30 +285,27 @@ function TeamCard({ team, teamKey }) {
 // ─── Center Column ────────────────────────────────────────────────────────────
 function CenterCol({ state }) {
   const { clockTenths, isRunning, quarter, shotClockTenths, shotRunning, possession, jumpBall } = state;
-  const shotSec = shotClockTenths / 10;
-
+  const shotSec    = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
-  const shotWarn = shotSec <= 10 && shotClockTenths > 0;
-  const shotColor = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#00E87A";
-
+  const shotWarn   = shotSec <= 10 && shotClockTenths > 0;
+  const shotColor  = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#00E87A";
   const gameTimeUp = clockTenths === 0;
   const clockDecimal = clockTenths <= 600;
   const qLabel = quarter > 4 ? `OT${quarter - 4}` : `Q${quarter}`;
 
   const S = (style) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...style });
-  const btn = (extra) => ({ ...S({}), border: "none", cursor: "pointer", borderRadius: 10, transition: "all 0.12s", position: "relative", ...extra });
+  const btn = (extra) => ({ ...S({}), border: "none", cursor: "pointer", borderRadius: 10, transition: "all 0.12s", position: "relative", overflow: "hidden", ...extra });
   const Hint = ({ children }) => <span style={{ position: "absolute", right: 6, top: 6, fontSize: 10, color: "rgba(255,255,255,0.4)", background: "rgba(0,0,0,0.5)", padding: "1px 4px", borderRadius: 4, letterSpacing: "0.05em" }}>{children}</span>;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-      {/* ══ SHOT CLOCK ══ */}
+      {/* Shot Clock */}
       <div style={{
         background: shotUrgent ? "linear-gradient(160deg,#1c0505,#0a0a14)" : "rgba(0,0,0,0.35)",
         border: `2px solid ${shotUrgent ? "rgba(255,40,40,0.55)" : shotWarn ? "rgba(255,165,0,0.4)" : "rgba(255,255,255,0.08)"}`,
         borderRadius: 20, padding: "16px 16px 12px",
-        boxShadow: shotUrgent ? "0 0 50px rgba(255,30,30,0.2)" : "none",
-        transition: "all 0.3s",
+        boxShadow: shotUrgent ? "0 0 50px rgba(255,30,30,0.2)" : "none", transition: "all 0.3s",
       }}>
         <div style={{ ...S({ fontSize: 11, letterSpacing: "0.5em" }), color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 2 }}>SHOT CLOCK</div>
         <div style={{ textAlign: "center", ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.85 }), color: shotColor,
@@ -298,16 +341,14 @@ function CenterCol({ state }) {
         </div>
       </div>
 
-      {/* ══ GAME CLOCK ══ */}
+      {/* Game Clock */}
       <div style={{
         background: gameTimeUp ? "rgba(255,0,0,0.35)" : "rgba(0,0,0,0.3)",
         border: gameTimeUp ? "2px solid #FF0000" : "1px solid rgba(255,215,0,0.15)",
         borderRadius: 18, padding: "14px 14px",
-        boxShadow: gameTimeUp ? "0 0 50px rgba(255,0,0,0.5)" : "none",
-        transition: "all 0.3s"
+        boxShadow: gameTimeUp ? "0 0 50px rgba(255,0,0,0.5)" : "none", transition: "all 0.3s",
       }}>
         <div style={{ ...S({ fontSize: 10, letterSpacing: "0.5em" }), color: gameTimeUp ? "#FF9999" : "rgba(255,215,0,0.55)", textAlign: "center", marginBottom: 6 }}>GAME CLOCK</div>
-
         <div style={{ textAlign: "center", marginBottom: 4 }}>
           <div style={{ ...S({ fontSize: clockDecimal ? 66 : 56, fontWeight: 900, lineHeight: 1 }), color: gameTimeUp ? "#FF0000" : isRunning ? "#FFD700" : "rgba(255,255,255,0.88)", textShadow: gameTimeUp ? "0 0 40px #FF0000" : isRunning ? "0 0 35px rgba(255,215,0,0.7)" : "none", transition: "all 0.2s" }}>
             {formatGameClock(clockTenths)}
@@ -316,7 +357,6 @@ function CenterCol({ state }) {
             {qLabel} {gameTimeUp ? "■ END" : isRunning ? "▶ LIVE" : "■ PAUSED"}
           </div>
         </div>
-
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 7 }}>
           <button className="btn-scale" onClick={() => send("clockToggle")} style={{ ...btn({ padding: "12px 0", fontSize: 17, letterSpacing: "0.08em", background: isRunning ? "rgba(255,55,55,0.15)" : "rgba(0,232,122,0.1)", border: isRunning ? "1.5px solid rgba(255,55,55,0.45)" : "1.5px solid rgba(0,232,122,0.35)", color: isRunning ? "#FF5555" : "#00E87A" }) }}>
             {isRunning ? "⏹ STOP" : "▶ START"}
@@ -326,7 +366,6 @@ function CenterCol({ state }) {
             ↺ RESET
           </button>
         </div>
-
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5, marginBottom: 8 }}>
           {[{ l: "+1m", v: 600 }, { l: "+10s", v: 100 }, { l: "+1s", v: 10 }, { l: "+0.1", v: 1 }].map(p => (
             <button key={p.l} onClick={() => send("clockAdjust", null, p.v)} style={{ ...btn({ padding: "6px 0", fontSize: 11, background: "rgba(0,232,122,0.06)", border: "1px solid rgba(0,232,122,0.15)", color: "rgba(0,232,122,0.6)" }) }}>{p.l}</button>
@@ -335,7 +374,6 @@ function CenterCol({ state }) {
             <button key={p.l} onClick={() => send("clockAdjust", null, p.v)} style={{ ...btn({ padding: "6px 0", fontSize: 11, background: "rgba(255,55,55,0.06)", border: "1px solid rgba(255,55,55,0.15)", color: "rgba(255,100,100,0.55)" }) }}>{p.l}</button>
           ))}
         </div>
-
         <div style={{ ...S({ fontSize: 10, letterSpacing: "0.35em" }), color: "rgba(255,255,255,0.22)", marginBottom: 5 }}>PERIOD</div>
         <div style={{ display: "flex", gap: 5 }}>
           {[1, 2, 3, 4, 5].map(q => (
@@ -346,13 +384,13 @@ function CenterCol({ state }) {
         </div>
       </div>
 
-      {/* ══ MANUAL HORN ══ */}
+      {/* Horn */}
       <button className="btn-scale" onClick={playHorn} style={{ ...btn({ width: "100%", padding: "14px 0", fontSize: 22, letterSpacing: "0.15em", background: "rgba(255,165,0,0.15)", border: "2px solid rgba(255,165,0,0.5)", color: "#FFA500", boxShadow: "0 4px 15px rgba(255,165,0,0.2)" }) }}>
         📢 SOUND HORN
         <Hint style={{ top: 9 }}>[ H ]</Hint>
       </button>
 
-      {/* ══ POSSESSION ══ */}
+      {/* Possession */}
       <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: "12px 14px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
           {[
@@ -371,23 +409,20 @@ function CenterCol({ state }) {
   );
 }
 
-// ─── Overlay Preview (Score Bug Style) ───────────────────────────────────────
+// ─── Overlay Preview ──────────────────────────────────────────────────────────
 function OverlayPreview({ state }) {
   const { teamA, teamB, quarter, clockTenths, shotClockTenths, possession, jumpBall } = state;
   const shotSec    = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const gameTimeUp = clockTenths === 0;
-  
   const O  = "'Oswald', sans-serif";
   const BC = "'Barlow Condensed',sans-serif";
-  const getQLabel = (q) => q <= 4 ? `Q${q}` : `OT${q-4}`;
+  const getQLabel = (q) => q <= 4 ? `Q${q}` : `OT${q - 4}`;
 
   const TeamBox = ({ team, tKey, flip }) => {
     const isPoss = possession === tKey;
     const hasBonus = team.teamFouls >= 5;
-    // Dynamic overlay font size
     const overlayNameSize = team.name.length <= 8 ? 28 : team.name.length <= 14 ? 20 : 15;
-    
     return (
       <div style={{ display: "flex", flexDirection: flip ? "row-reverse" : "row", alignItems: "stretch", height: "100%" }}>
         <div style={{ width: 6, background: team.color }} />
@@ -410,7 +445,7 @@ function OverlayPreview({ state }) {
           </div>
         </div>
         <div style={{ width: 85, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", borderLeft: flip ? "none" : "1px solid rgba(255,255,255,0.05)", borderRight: flip ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-          <span style={{ fontFamily: O, fontSize: 52, fontWeight: 700, color: team.color, lineHeight: 1, textShadow: `0 2px 10px rgba(0,0,0,0.5)` }}>{team.score}</span>
+          <span style={{ fontFamily: O, fontSize: 52, fontWeight: 700, color: team.color, lineHeight: 1, textShadow: "0 2px 10px rgba(0,0,0,0.5)" }}>{team.score}</span>
         </div>
       </div>
     );
@@ -449,9 +484,12 @@ export default function App() {
   });
   const [connected, setConnected] = useState(false);
 
-  const prevGameClock = useRef(state.clockTenths);
-  const prevShotClock = useRef(state.shotClockTenths);
+  const prevGameClock  = useRef(state.clockTenths);
+  const prevShotClock  = useRef(state.shotClockTenths);
+  // ─── FIX: track quarter changes for timeout reset ─────────────────────────
+  const prevQuarterRef = useRef(state.quarter);
 
+  // ─── Audio on clock expiry ────────────────────────────────────────────────
   useEffect(() => {
     if (prevGameClock.current > 0 && state.clockTenths === 0) playBuzzer();
     if (prevShotClock.current > 0 && state.shotClockTenths === 0) playHorn();
@@ -459,15 +497,37 @@ export default function App() {
     prevShotClock.current = state.shotClockTenths;
   }, [state.clockTenths, state.shotClockTenths]);
 
+  // ─── FIX: Auto-reset timeouts when quarter changes ─────────────────────────
+  // FIBA: 2 timeouts ต่อครึ่ง (Q1-Q2 = 2, Q3-Q4 = 2 ใหม่), OT = 1 ต่อ period
+  useEffect(() => {
+    if (prevQuarterRef.current === state.quarter) return;
+    prevQuarterRef.current = state.quarter;
+
+    const targetTimeouts = getTimeoutMax(state.quarter);
+
+    ["teamA", "teamB"].forEach(key => {
+      const current = key === "teamA" ? state.teamA.timeouts : state.teamB.timeouts;
+      const diff    = targetTimeouts - current;
+      // ส่ง action เพิ่ม/ลด timeout จนกว่าจะถึงเป้าหมาย
+      // หมายเหตุ: server ต้องรองรับ timeout +1/-1 จาก logic นี้
+      if (diff > 0) {
+        for (let i = 0; i < diff; i++) send("timeout", key, 1);
+      } else if (diff < 0) {
+        for (let i = 0; i < Math.abs(diff); i++) send("timeout", key, -1);
+      }
+    });
+  }, [state.quarter]);
+
+  // ─── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === "INPUT") return;
-      switch(e.code) {
-        case "Space": e.preventDefault(); send("clockToggle"); break;
+      switch (e.code) {
+        case "Space": e.preventDefault(); send("clockToggle");    break;
         case "KeyC":  e.preventDefault(); send("shotClockToggle"); break;
         case "KeyZ":  e.preventDefault(); send("shotClockSet", null, 24); break;
         case "KeyX":  e.preventDefault(); send("shotClockSet", null, 14); break;
-        case "KeyH":  e.preventDefault(); playHorn(); break;
+        case "KeyH":  e.preventDefault(); playHorn();             break;
         default: break;
       }
     };
@@ -475,9 +535,10 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // ─── Socket ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
+    socket.on("connect",     () => setConnected(true));
+    socket.on("disconnect",  () => setConnected(false));
     socket.on("stateUpdate", (s) => {
       if (!s || !s.teamA) return;
       setState({ ...s, teamA: { techFouls: 0, ...s.teamA }, teamB: { techFouls: 0, ...s.teamB } });
@@ -495,6 +556,7 @@ export default function App() {
         .btn-scale:hover { filter: brightness(1.2); }
       `}</style>
 
+      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <div>
           <div style={{ fontFamily: "'Bebas Neue',Impact,sans-serif", fontSize: 32, letterSpacing: "0.25em", background: "linear-gradient(90deg,#FF6B35,#FFD700 40%,#00D4FF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>
@@ -519,8 +581,9 @@ export default function App() {
         </div>
       </div>
 
+      {/* Overlay Preview */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontFamily: "'Bebas Neue',Impact,sans-serif", color: "rgba(255,255,255,0.17)", fontSize: 10, letterSpacing: "0.4em", marginBottom: 5 }}>▼ OBS OVERLAY PREVIEW (FB LIVE OPTIMIZED)</div>
+        <div style={{ fontFamily: "'Bebas Neue',Impact,sans-serif", color: "rgba(255,255,255,0.17)", fontSize: 10, letterSpacing: "0.4em", marginBottom: 5 }}>▼ OBS OVERLAY PREVIEW</div>
         <OverlayPreview state={state} />
         <div style={{ fontFamily: "'Bebas Neue',Impact,sans-serif", color: "rgba(255,255,255,0.09)", fontSize: 10, textAlign: "center", marginTop: 4, letterSpacing: "0.12em" }}>
           OBS Browser Source → {SOCKET_URL}/overlay | Width: 1920 · Height: 1080 · ✅ Allow Transparency
@@ -528,11 +591,15 @@ export default function App() {
       </div>
 
       <div style={{ height: 1, background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)", marginBottom: 12 }} />
+
+      {/* Tournament Bridge */}
       <TournamentBridge state={state} send={send} />
+
+      {/* Main Grid — pass quarter ไปให้ TeamCard */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 304px 1fr", gap: 12, maxWidth: 1400, margin: "0 auto" }}>
-        <TeamCard team={state.teamA} teamKey="teamA" />
+        <TeamCard team={state.teamA} teamKey="teamA" quarter={state.quarter} />
         <CenterCol state={state} />
-        <TeamCard team={state.teamB} teamKey="teamB" />
+        <TeamCard team={state.teamB} teamKey="teamB" quarter={state.quarter} />
       </div>
     </div>
   );
