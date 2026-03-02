@@ -239,7 +239,10 @@ function CenterCol({ state }) {
   const shotSec = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const shotWarn = shotSec <= 10 && shotClockTenths > 0;
+  
+  // ปรับสีให้ดู Flat ไม่นีออน
   const shotColor = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#00E87A";
+  
   const gameTimeUp = clockTenths === 0;
   const qLabel = quarter > 4 ? `OT${quarter - 4}` : `Q${quarter}`;
   const S = (s) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...s });
@@ -248,37 +251,51 @@ function CenterCol({ state }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* Shot Clock */}
-      <div style={{ background: shotUrgent ? "linear-gradient(160deg,#1c0505,#0a0a14)" : "rgba(0,0,0,0.35)", border: `2px solid ${shotUrgent ? "rgba(255,40,40,0.55)" : shotWarn ? "rgba(255,165,0,0.4)" : "rgba(255,255,255,0.08)"}`, borderRadius: 20, padding: "16px 16px 12px", boxShadow: shotUrgent ? "0 0 50px rgba(255,30,30,0.2)" : "none", transition: "all 0.3s" }}>
+      {/* Shot Clock - ปรับใหม่: ไม่ห้อย (ไม่มี Progress) และไม่นีออน */}
+      <div style={{ 
+        background: "rgba(0,0,0,0.35)", 
+        border: `1px solid ${shotUrgent ? "rgba(255,40,40,0.4)" : "rgba(255,255,255,0.08)"}`, 
+        borderRadius: 20, 
+        padding: "16px 16px 12px", 
+        transition: "all 0.3s" 
+      }}>
         <div style={{ ...S({ fontSize: 11, letterSpacing: "0.5em" }), color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 2 }}>SHOT CLOCK</div>
-        <div style={{ textAlign: "center", ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.85 }), color: shotColor, textShadow: shotUrgent ? "0 0 50px rgba(255,30,30,0.9)" : shotWarn ? "0 0 30px rgba(255,165,0,0.5)" : `0 0 30px ${shotColor}44` }}>{formatShotClock(shotClockTenths)}</div>
-        <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", margin: "8px 0" }}>
-          <div style={{ height: "100%", width: `${Math.min(100,(shotClockTenths/240)*100)}%`, background: shotColor, borderRadius: 2, transition: "width 0.1s linear" }} />
+        
+        {/* ตัวเลขแบบเส้นเดียว คมๆ ไม่ฟุ้ง */}
+        <div style={{ 
+          textAlign: "center", 
+          ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.85 }), 
+          color: shotColor 
+        }}>
+          {formatShotClock(shotClockTenths)}
         </div>
-        <button className="btn-scale" onClick={() => send("shotClockToggle")} style={{ ...btn({ width: "100%", padding: "13px 0", fontSize: 19, letterSpacing: "0.15em", marginBottom: 7 }), background: shotRunning ? "rgba(255,55,55,0.15)" : "rgba(0,232,122,0.1)", border: shotRunning ? "1.5px solid rgba(255,55,55,0.45)" : "1.5px solid rgba(0,232,122,0.35)", color: shotRunning ? "#FF5555" : "#00E87A" }}>
+        
+        {/* เพิ่มช่องว่างแทน Progress Bar เดิมเพื่อให้ไม่ติดกับปุ่มเกินไป */}
+        <div style={{ height: 12 }} />
+
+        <button className="btn-scale" onClick={() => send("shotClockToggle")} style={{ ...btn({ width: "100%", padding: "13px 0", fontSize: 19, letterSpacing: "0.15em", marginBottom: 7 }), background: shotRunning ? "rgba(255,55,55,0.12)" : "rgba(0,232,122,0.08)", border: shotRunning ? "1px solid rgba(255,55,55,0.3)" : "1px solid rgba(0,232,122,0.25)", color: shotRunning ? "#FF5555" : "#00E87A" }}>
           {shotRunning ? "⏹ STOP" : "▶ START"}<Hint>[ C ]</Hint>
         </button>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-          <button className="btn-scale" onClick={() => send("shotClockSet", null, 24)} style={{ ...btn({ padding: "14px 0", fontSize: 38, color: "#FFD700", background: "rgba(255,215,0,0.1)", border: "1.5px solid rgba(255,215,0,0.4)" }) }}>24<Hint>[Z]</Hint></button>
-          <button className="btn-scale" onClick={() => send("shotClockSet", null, 14)} style={{ ...btn({ padding: "14px 0", fontSize: 38, color: "#FFA500", background: "rgba(255,165,0,0.1)", border: "1.5px solid rgba(255,165,0,0.4)" }) }}>14<Hint>[X]</Hint></button>
+          <button className="btn-scale" onClick={() => send("shotClockSet", null, 24)} style={{ ...btn({ padding: "14px 0", fontSize: 38, color: "#FFD700", background: "rgba(255,215,0,0.08)", border: "1px solid rgba(255,215,0,0.25)" }) }}>24<Hint>[Z]</Hint></button>
+          <button className="btn-scale" onClick={() => send("shotClockSet", null, 14)} style={{ ...btn({ padding: "14px 0", fontSize: 38, color: "#FFA500", background: "rgba(255,165,0,0.08)", border: "1px solid rgba(255,165,0,0.25)" }) }}>14<Hint>[X]</Hint></button>
         </div>
         
-        {/* ─── เพิ่มปุ่มปรับเวลา Shot Clock (+1s / -1s) ─── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 7 }}>
-          <button onClick={() => send("shotClockAdjust", null, 10)} style={{ ...btn({ padding: "6px 0", fontSize: 13, background: "rgba(0,232,122,0.06)", border: "1px solid rgba(0,232,122,0.15)", color: "rgba(0,232,122,0.6)" }) }}>+1.0s</button>
-          <button onClick={() => send("shotClockAdjust", null, -10)} style={{ ...btn({ padding: "6px 0", fontSize: 13, background: "rgba(255,55,55,0.06)", border: "1px solid rgba(255,55,55,0.15)", color: "rgba(255,100,100,0.55)" }) }}>-1.0s</button>
+          <button onClick={() => send("shotClockAdjust", null, 10)} style={{ ...btn({ padding: "6px 0", fontSize: 13, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }) }}>+1.0s</button>
+          <button onClick={() => send("shotClockAdjust", null, -10)} style={{ ...btn({ padding: "6px 0", fontSize: 13, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }) }}>-1.0s</button>
         </div>
       </div>
 
       {/* Game Clock */}
-      <div style={{ background: gameTimeUp ? "rgba(255,0,0,0.35)" : "rgba(0,0,0,0.3)", border: gameTimeUp ? "2px solid #FF0000" : "1px solid rgba(255,215,0,0.15)", borderRadius: 18, padding: "14px", boxShadow: gameTimeUp ? "0 0 50px rgba(255,0,0,0.5)" : "none", transition: "all 0.3s" }}>
+      <div style={{ background: gameTimeUp ? "rgba(255,0,0,0.25)" : "rgba(0,0,0,0.3)", border: gameTimeUp ? "1px solid #FF0000" : "1px solid rgba(255,215,0,0.15)", borderRadius: 18, padding: "14px", transition: "all 0.3s" }}>
         <div style={{ ...S({ fontSize: 10, letterSpacing: "0.5em" }), color: gameTimeUp ? "#FF9999" : "rgba(255,215,0,0.55)", textAlign: "center", marginBottom: 6 }}>GAME CLOCK</div>
         <div style={{ textAlign: "center", marginBottom: 4 }}>
-          <div style={{ ...S({ fontSize: clockTenths <= 600 ? 66 : 56, fontWeight: 900, lineHeight: 1 }), color: gameTimeUp ? "#FF0000" : isRunning ? "#FFD700" : "rgba(255,255,255,0.88)", textShadow: gameTimeUp ? "0 0 40px #FF0000" : isRunning ? "0 0 35px rgba(255,215,0,0.7)" : "none", transition: "all 0.2s" }}>{formatGameClock(clockTenths)}</div>
+          <div style={{ ...S({ fontSize: clockTenths <= 600 ? 66 : 56, fontWeight: 900, lineHeight: 1 }), color: gameTimeUp ? "#FF0000" : isRunning ? "#FFD700" : "rgba(255,255,255,0.88)", transition: "all 0.2s" }}>{formatGameClock(clockTenths)}</div>
           <div style={{ ...S({ fontSize: 13, letterSpacing: "0.4em" }), color: gameTimeUp ? "#FF6666" : isRunning ? "rgba(255,215,0,0.65)" : "rgba(255,255,255,0.2)", marginTop: 2 }}>{qLabel} {gameTimeUp ? "■ END" : isRunning ? "▶ LIVE" : "■ PAUSED"}</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 7 }}>
-          <button className="btn-scale" onClick={() => send("clockToggle")} style={{ ...btn({ padding: "12px 0", fontSize: 17, letterSpacing: "0.08em", background: isRunning ? "rgba(255,55,55,0.15)" : "rgba(0,232,122,0.1)", border: isRunning ? "1.5px solid rgba(255,55,55,0.45)" : "1.5px solid rgba(0,232,122,0.35)", color: isRunning ? "#FF5555" : "#00E87A" }) }}>{isRunning ? "⏹ STOP" : "▶ START"}<Hint>[SPC]</Hint></button>
+          <button className="btn-scale" onClick={() => send("clockToggle")} style={{ ...btn({ padding: "12px 0", fontSize: 17, letterSpacing: "0.08em", background: isRunning ? "rgba(255,55,55,0.12)" : "rgba(0,232,122,0.08)", border: isRunning ? "1px solid rgba(255,55,55,0.3)" : "1px solid rgba(0,232,122,0.25)", color: isRunning ? "#FF5555" : "#00E87A" }) }}>{isRunning ? "⏹ STOP" : "▶ START"}<Hint>[SPC]</Hint></button>
           <button className="btn-scale" onClick={() => send("clockReset")} style={{ ...btn({ padding: "12px 0", fontSize: 17, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }) }}>↺ RESET</button>
         </div>
 
@@ -286,30 +303,30 @@ function CenterCol({ state }) {
         <div style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "8px", marginTop: 5, marginBottom: 10 }}>
           <div style={{ ...S({ fontSize: 10, letterSpacing: "0.2em" }), color: "rgba(255,255,255,0.3)", marginBottom: 6, textAlign: "center" }}>TIME PRESETS</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 5 }}>
-            <button onClick={() => { send("clockSet", null, 6000); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(255,215,0,0.08)", color: "#FFD700", border: "1px solid rgba(255,215,0,0.2)" }) }}>START 10:00</button>
-            <button onClick={() => { send("clockSet", null, 7200); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(255,215,0,0.08)", color: "#FFD700", border: "1px solid rgba(255,215,0,0.2)" }) }}>START 12:00</button>
+            <button onClick={() => { send("clockSet", null, 6000); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(255,215,0,0.06)", color: "#FFD700", border: "1px solid rgba(255,215,0,0.15)" }) }}>START 10:00</button>
+            <button onClick={() => { send("clockSet", null, 7200); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(255,215,0,0.06)", color: "#FFD700", border: "1px solid rgba(255,215,0,0.15)" }) }}>START 12:00</button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 5 }}>
-            <button onClick={() => { send("clockSet", null, 1200); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(0,212,255,0.08)", color: "#00D4FF", border: "1px solid rgba(0,212,255,0.2)" }) }}>REST 02:00</button>
-            <button onClick={() => { send("clockSet", null, 9000); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(0,212,255,0.08)", color: "#00D4FF", border: "1px solid rgba(0,212,255,0.2)" }) }}>HALF 15:00</button>
+            <button onClick={() => { send("clockSet", null, 1200); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(0,212,255,0.06)", color: "#00D4FF", border: "1px solid rgba(0,212,255,0.15)" }) }}>REST 02:00</button>
+            <button onClick={() => { send("clockSet", null, 9000); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(0,212,255,0.06)", color: "#00D4FF", border: "1px solid rgba(0,212,255,0.15)" }) }}>HALF 15:00</button>
           </div>
           <div style={{ display: "flex", gap: 5 }}>
-            <button onClick={() => { send("clockSet", null, 600); send("clockStop"); }} style={{ ...btn({ flex: 1, padding: "6px 0", fontSize: 12, background: "rgba(255,165,0,0.12)", color: "#FFA500", border: "1px solid rgba(255,165,0,0.3)" }) }}>T.O. 60s</button>
-            <button onClick={() => { send("clockSet", null, 300); send("clockStop"); }} style={{ ...btn({ flex: 1, padding: "6px 0", fontSize: 12, background: "rgba(255,165,0,0.12)", color: "#FFA500", border: "1px solid rgba(255,165,0,0.3)" }) }}>T.O. 30s</button>
+            <button onClick={() => { send("clockSet", null, 600); send("clockStop"); }} style={{ ...btn({ flex: 1, padding: "6px 0", fontSize: 12, background: "rgba(255,165,0,0.08)", color: "#FFA500", border: "1px solid rgba(255,165,0,0.2)" }) }}>T.O. 60s</button>
+            <button onClick={() => { send("clockSet", null, 300); send("clockStop"); }} style={{ ...btn({ flex: 1, padding: "6px 0", fontSize: 12, background: "rgba(255,165,0,0.08)", color: "#FFA500", border: "1px solid rgba(255,165,0,0.2)" }) }}>T.O. 30s</button>
           </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5, marginBottom: 8 }}>
-          {[{l:"+1m",v:600},{l:"+10s",v:100},{l:"+1s",v:10},{l:"+0.1",v:1}].map(p=><button key={p.l} onClick={()=>send("clockAdjust",null,p.v)} style={{...btn({padding:"6px 0",fontSize:11,background:"rgba(0,232,122,0.06)",border:"1px solid rgba(0,232,122,0.15)",color:"rgba(0,232,122,0.6)"})}}>{p.l}</button>)}
-          {[{l:"-1m",v:-600},{l:"-10s",v:-100},{l:"-1s",v:-10},{l:"-0.1",v:-1}].map(p=><button key={p.l} onClick={()=>send("clockAdjust",null,p.v)} style={{...btn({padding:"6px 0",fontSize:11,background:"rgba(255,55,55,0.06)",border:"1px solid rgba(255,55,55,0.15)",color:"rgba(255,100,100,0.55)"})}}>{p.l}</button>)}
+          {[{l:"+1m",v:600},{l:"+10s",v:100},{l:"+1s",v:10},{l:"+0.1",v:1}].map(p=><button key={p.l} onClick={()=>send("clockAdjust",null,p.v)} style={{...btn({padding:"6px 0",fontSize:11,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",color:"rgba(255,255,255,0.3)"})}}>{p.l}</button>)}
+          {[{l:"-1m",v:-600},{l:"-10s",v:-100},{l:"-1s",v:-10},{l:"-0.1",v:-1}].map(p=><button key={p.l} onClick={()=>send("clockAdjust",null,p.v)} style={{...btn({padding:"6px 0",fontSize:11,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",color:"rgba(255,255,255,0.3)"})}}>{p.l}</button>)}
         </div>
         <div style={{ ...S({ fontSize: 10, letterSpacing: "0.35em" }), color: "rgba(255,255,255,0.22)", marginBottom: 5 }}>PERIOD</div>
         <div style={{ display: "flex", gap: 5 }}>
-          {[1,2,3,4,5].map(q=><button key={q} onClick={()=>send("quarter",null,q)} style={{...btn({flex:1,padding:"9px 0",fontSize:14,background:quarter===q?"rgba(255,215,0,0.12)":"rgba(255,255,255,0.04)",border:quarter===q?"1px solid rgba(255,215,0,0.45)":"1px solid rgba(255,255,255,0.07)",color:quarter===q?"#FFD700":"rgba(255,255,255,0.28)",boxShadow:quarter===q?"0 0 12px rgba(255,215,0,0.15)":"none"})}}>{q>4?"OT":`Q${q}`}</button>)}
+          {[1,2,3,4,5].map(q=><button key={q} onClick={()=>send("quarter",null,q)} style={{...btn({flex:1,padding:"9px 0",fontSize:14,background:quarter===q?"rgba(255,215,0,0.12)":"rgba(255,255,255,0.04)",border:quarter===q?"1px solid rgba(255,215,0,0.45)":"1px solid rgba(255,255,255,0.07)",color:quarter===q?"#FFD700":"rgba(255,255,255,0.28)"})}}>{q>4?"OT":`Q${q}`}</button>)}
         </div>
       </div>
 
-      <button className="btn-scale" onClick={playHorn} style={{...btn({width:"100%",padding:"14px 0",fontSize:22,letterSpacing:"0.15em",background:"rgba(255,165,0,0.15)",border:"2px solid rgba(255,165,0,0.5)",color:"#FFA500",boxShadow:"0 4px 15px rgba(255,165,0,0.2)"})}}>📢 SOUND HORN<Hint style={{top:9}}>[H]</Hint></button>
+      <button className="btn-scale" onClick={playHorn} style={{...btn({width:"100%",padding:"14px 0",fontSize:22,letterSpacing:"0.15em",background:"rgba(255,165,0,0.12)",border:"1px solid rgba(255,165,0,0.4)",color:"#FFA500"})}}>📢 SOUND HORN<Hint style={{top:9}}>[H]</Hint></button>
 
       {/* Possession */}
       <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: "12px 14px" }}>
@@ -319,19 +336,20 @@ function CenterCol({ state }) {
             { label: "JUMP ⊕", action: () => send("jumpBall"), active: jumpBall, color: "#FFD700" },
             { label: "BALL ▶", action: () => send("possession", null, possession === "teamB" ? null : "teamB"), active: possession === "teamB", color: "#00D4FF" },
           ].map((b, i) => (
-            <button key={i} onClick={b.action} style={{...btn({padding:"9px 0",fontSize:11,letterSpacing:"0.06em",background:b.active?`${b.color}18`:"rgba(255,255,255,0.04)",border:b.active?`1.5px solid ${b.color}55`:"1px solid rgba(255,255,255,0.08)",color:b.active?b.color:"rgba(255,255,255,0.3)"})}}>{b.label}</button>
+            <button key={i} onClick={b.action} style={{...btn({padding:"9px 0",fontSize:11,letterSpacing:"0.06em",background:b.active?`${b.color}12`:"rgba(255,255,255,0.04)",border:b.active?`1px solid ${b.color}45`:"1px solid rgba(255,255,255,0.08)",color:b.active?b.color:"rgba(255,255,255,0.3)"})}}>{b.label}</button>
           ))}
         </div>
       </div>
     </div>
   );
 }
-
-// ─── Overlay Preview ──────────────────────────────────────────
+// ─── Overlay Preview (ดีไซน์ใหม่: ล็อคขนาดกล่องนิ่ง 100% ไม่ขยับตามตัวเลข) ──────────
 function OverlayPreview({ state, logoA, logoB }) {
   const { teamA, teamB, quarter, clockTenths, shotClockTenths, possession, jumpBall } = state;
-  const shotUrgent = shotClockTenths / 10 <= 5 && shotClockTenths > 0;
+  const shotSec = shotClockTenths / 10;
+  const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const gameTimeUp = clockTenths === 0;
+  
   const O  = "'Oswald', sans-serif";
   const BC = "'Barlow Condensed',sans-serif";
   const getQL = (q) => q <= 4 ? `Q${q}` : `OT${q-4}`;
@@ -339,72 +357,105 @@ function OverlayPreview({ state, logoA, logoB }) {
   const TeamBox = ({ team, tKey, flip, logo }) => {
     const isPoss = possession === tKey;
     const nameSize = team.name.length <= 8 ? 24 : team.name.length <= 14 ? 18 : 13;
-    const infoBlock = (
-      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 12px", minWidth: 130, alignItems: flip ? "flex-end" : "flex-start" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: flip ? "row-reverse" : "row" }}>
-          {isPoss && <span style={{ fontFamily: O, fontSize: 12, color: team.color }}>{flip ? "▶" : "◀"}</span>}
-          <span style={{ fontFamily: O, fontSize: nameSize, fontWeight: 700, color: "#FFF", lineHeight: 1.1 }}>{team.name}</span>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3, flexDirection: flip ? "row-reverse" : "row" }}>
-          <div style={{ display: "flex", gap: 3 }}>
-            {[...Array(2)].map((_, i) => <div key={i} style={{ width: 11, height: 4, borderRadius: 2, background: i < team.timeouts ? "#FFF" : "rgba(255,255,255,0.15)" }} />)}
-          </div>
-          <span style={{ fontFamily: O, fontSize: 12, fontWeight: 700, color: team.teamFouls >= 5 ? "#FF3333" : "#FFF" }}>{team.teamFouls}</span>
-          {team.teamFouls >= 5 && <span style={{ fontFamily: BC, fontSize: 9, fontWeight: 800, color: "#FFD700" }}>BONUS</span>}
-        </div>
-      </div>
-    );
-    const scoreBlock = (
-      <div style={{ width: 76, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)", borderLeft: "1px solid rgba(255,255,255,0.06)", borderRight: "1px solid rgba(255,255,255,0.06)" }}>
-        <span style={{ fontFamily: O, fontSize: 46, fontWeight: 700, color: team.color, lineHeight: 1 }}>{team.score}</span>
-      </div>
-    );
-    const logoSlot = (
-      <div style={{ width: 52, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)", flexShrink: 0 }}>
-        {logo ? (
-          <img src={logo} alt="" style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 3, opacity: 0.92 }} onError={e => e.target.style.display = "none"} />
-        ) : (
-          <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${team.color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue'", fontSize: 16, color: team.color, opacity: 0.5 }}>{team.name[0]}</div>
-        )}
-      </div>
-    );
+    
     return (
       <div style={{ display: "flex", flexDirection: "row", alignItems: "stretch", height: "100%" }}>
         {!flip && <div style={{ width: 5, background: team.color }} />}
-        {!flip && logoSlot}
-        {!flip && infoBlock}
-        {!flip && scoreBlock}
-        {flip  && scoreBlock}
-        {flip  && infoBlock}
-        {flip  && logoSlot}
-        {flip  && <div style={{ width: 5, background: team.color }} />}
+        {!flip && (
+           <div style={{ width: 52, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)", flexShrink: 0 }}>
+             {logo ? <img src={logo} alt="" style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 3 }} /> 
+                   : <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${team.color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue'", fontSize: 16, color: team.color, opacity: 0.5 }}>{team.name[0]}</div>}
+           </div>
+        )}
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 12px", minWidth: 140, alignItems: flip ? "flex-end" : "flex-start" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: flip ? "row-reverse" : "row" }}>
+            {isPoss && <span style={{ fontFamily: O, fontSize: 12, color: team.color }}>{flip ? "▶" : "◀"}</span>}
+            <span style={{ fontFamily: O, fontSize: nameSize, fontWeight: 700, color: "#FFF", lineHeight: 1.1 }}>{team.name}</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3, flexDirection: flip ? "row-reverse" : "row" }}>
+            <div style={{ display: "flex", gap: 3 }}>
+              {[...Array(2)].map((_, i) => <div key={i} style={{ width: 11, height: 4, borderRadius: 2, background: i < team.timeouts ? "#FFF" : "rgba(255,255,255,0.15)" }} />)}
+            </div>
+            <span style={{ fontFamily: O, fontSize: 12, fontWeight: 700, color: team.teamFouls >= 5 ? "#FF3333" : "#FFF" }}>{team.teamFouls}</span>
+          </div>
+        </div>
+        <div style={{ width: 76, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}>
+          <span style={{ fontFamily: O, fontSize: 44, fontWeight: 700, color: team.color, lineHeight: 1 }}>{team.score}</span>
+        </div>
+        {flip && (
+           <div style={{ width: 52, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)", flexShrink: 0 }}>
+             {logo ? <img src={logo} alt="" style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 3 }} /> 
+                   : <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${team.color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue'", fontSize: 16, color: team.color, opacity: 0.5 }}>{team.name[0]}</div>}
+           </div>
+        )}
+        {flip && <div style={{ width: 5, background: team.color }} />}
       </div>
     );
   };
 
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <div style={{ display: "flex", height: 66, background: "rgba(18,20,28,0.97)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 10px 30px rgba(0,0,0,0.6)", overflow: "hidden" }}>
-          <TeamBox team={teamA} tKey="teamA" flip={false} logo={logoA} />
-          <div style={{ width: 132, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", position: "relative", flexShrink: 0 }}>
-            {jumpBall && <div style={{ position: "absolute", top: 2, fontFamily: BC, fontSize: 9, fontWeight: 800, color: "#FFD700" }}>⊕ JUMP</div>}
-            <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-              <span style={{ fontFamily: O, fontSize: 14, fontWeight: 700, color: "#FFD700", letterSpacing: "0.1em" }}>{getQL(quarter)}</span>
-              <span style={{ fontFamily: O, fontSize: 34, fontWeight: 700, color: gameTimeUp ? "#FF2222" : "#FFF", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{formatGameClock(clockTenths)}</span>
+      <div style={{ 
+        display: "flex", 
+        height: 66, 
+        background: "rgba(18,20,28,0.97)", 
+        borderRadius: 8, 
+        border: "1px solid rgba(255,255,255,0.12)", 
+        boxShadow: "0 10px 30px rgba(0,0,0,0.6)", 
+        overflow: "hidden" 
+      }}>
+        <TeamBox team={teamA} tKey="teamA" flip={false} logo={logoA} />
+
+        {/* CENTER CONTROL BLOCK: ล็อคความกว้างคงที่ */}
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          background: "rgba(0,0,0,0.6)", 
+          width: 200, // ล็อคขนาดคงที่ กล่องจะไม่ขยับ
+          justifyContent: "center",
+          position: "relative"
+        }}>
+          {jumpBall && <div style={{ position: "absolute", top: 3, fontFamily: BC, fontSize: 8, color: "#FFD700", letterSpacing: "0.2em" }}>⊕ JUMP</div>}
+          
+          {/* Game Clock - ล็อคความกว้างตัวเลข */}
+          <div style={{ width: 75, textAlign: "center" }}>
+            <div style={{ fontFamily: BC, fontSize: 9, color: "rgba(255,255,255,0.3)", marginBottom: -2 }}>GAME</div>
+            <div style={{ 
+              fontFamily: O, fontSize: 28, fontWeight: 700, 
+              color: gameTimeUp ? "#FF2222" : "#FFF", 
+              fontVariantNumeric: "tabular-nums" // ตัวเลขความกว้างเท่ากันทุกตัว
+            }}>
+              {formatGameClock(clockTenths)}
             </div>
           </div>
-          <TeamBox team={teamB} tKey="teamB" flip={true} logo={logoB} />
+
+          {/* Period - กั้นกลางนิ่งๆ */}
+          <div style={{ 
+            width: 40, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+            borderLeft: "1px solid rgba(255,255,255,0.1)", borderRight: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(255,255,255,0.03)", margin: "0 5px"
+          }}>
+            <span style={{ fontFamily: O, fontSize: 16, fontWeight: 700, color: "#FFD700" }}>{getQL(quarter)}</span>
+          </div>
+
+          {/* Shot Clock - ล็อคความกว้างตัวเลข */}
+          <div style={{ width: 65, textAlign: "center" }}>
+            <div style={{ fontFamily: BC, fontSize: 9, color: shotUrgent ? "#FF3333" : "rgba(255,255,255,0.3)", marginBottom: -2 }}>SHOT</div>
+            <div style={{ 
+              fontFamily: O, fontSize: 28, fontWeight: 700, 
+              color: shotUrgent ? "#FF3333" : "#FFD700",
+              fontVariantNumeric: "tabular-nums"
+            }}>
+              {formatShotClock(shotClockTenths)}
+            </div>
+          </div>
         </div>
-        <div style={{ marginTop: -2, padding: "4px 16px", background: shotUrgent ? "#FF2222" : "rgba(30,32,40,0.97)", borderBottomLeftRadius: 8, borderBottomRightRadius: 8, border: "1px solid rgba(255,255,255,0.1)", borderTop: "none", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: BC, fontSize: 11, fontWeight: 800, color: shotUrgent ? "#FFF" : "rgba(255,255,255,0.4)" }}>SHOT</span>
-          <span style={{ fontFamily: O, fontSize: 22, fontWeight: 700, color: shotUrgent ? "#FFF" : "#FFD700", lineHeight: 1 }}>{formatShotClock(shotClockTenths)}</span>
-        </div>
+
+        <TeamBox team={teamB} tKey="teamB" flip={true} logo={logoB} />
       </div>
     </div>
   );
 }
-
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP COMPONENT
 // ═══════════════════════════════════════════════════════════════
