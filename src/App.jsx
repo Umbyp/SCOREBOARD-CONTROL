@@ -62,26 +62,23 @@ function getNameFontSize(name = "") {
 }
 function getTimeoutMax(q) { return q >= 5 ? 1 : 2; }
 
-// ─── Logo Picker ──────────────────────────────────────────────
+// ─── Logo Picker (Upload + URL) ──────────────────────────────
 function LogoPicker({ teamKey, logoUrl, color, onSave }) {
-  const [open, setOpen]   = useState(false);
-  const [url, setUrl]     = useState(logoUrl || "");
-  const fileInputRef      = useRef(null); // เพิ่ม ref สำหรับ input file
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState(logoUrl || "");
+  const fileInputRef = useRef(null);
 
-  // ฟังก์ชันจัดการเมื่อเลือกไฟล์จากเครื่อง
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // ตรวจสอบขนาด (แนะนำไม่ควรเกิน 500KB เพื่อไม่ให้ Database หนักเกินไป)
       if (file.size > 1024 * 500) {
-        alert("ไฟล์ใหญ่เกินไปครับพี่ภณ! แนะนำไม่เกิน 500KB เพื่อความรวดเร็ว");
+        alert("ไฟล์ใหญ่เกินไปครับพี่ภณ! แนะนำไม่เกิน 500KB เพื่อไม่ให้ระบบหน่วง");
         return;
       }
-
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result;
-        setUrl(base64String); // พรีวิวรูปที่เลือก
+        setUrl(base64String);
       };
       reader.readAsDataURL(file);
     }
@@ -92,79 +89,33 @@ function LogoPicker({ teamKey, logoUrl, color, onSave }) {
     onSave(teamKey, v);
     const lsKey = teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B;
     if (v) localStorage.setItem(lsKey, v);
-    else   localStorage.removeItem(lsKey);
+    else localStorage.removeItem(lsKey);
     setOpen(false);
   };
-
-  const clear = () => { 
-    setUrl(""); 
-    onSave(teamKey, ""); 
-    localStorage.removeItem(teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B); 
-    setOpen(false); 
-  };
+  const clear = () => { setUrl(""); onSave(teamKey, ""); localStorage.removeItem(teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B); setOpen(false); };
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: 48, height: 48, borderRadius: 10,
-          background: logoUrl ? "rgba(0,0,0,0.4)" : `${color}10`,
-          border: `1.5px solid ${logoUrl ? color + "55" : color + "25"}`,
-          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          overflow: "hidden",
-        }}
-      >
-        {logoUrl ? <img src={logoUrl} alt="logo" style={{ width: 40, height: 40, objectFit: "contain" }} /> : <span style={{ fontSize: 20 }}>🖼</span>}
+      <button onClick={() => setOpen(o => !o)} title="ตั้งค่า Logo ทีม" style={{ width: 48, height: 48, borderRadius: 10, background: logoUrl ? "rgba(0,0,0,0.4)" : `${color}10`, border: `1.5px solid ${logoUrl ? color + "55" : color + "25"}`, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", transition: "all 0.2s" }}>
+        {logoUrl ? <img src={logoUrl} alt="logo" style={{ width: 40, height: 40, objectFit: "contain" }} onError={e => e.target.style.display = "none"} /> : <span style={{ fontSize: 20, opacity: 0.4 }}>🖼</span>}
       </button>
 
       {open && (
-        <div style={{
-          position: "absolute", top: 56, left: 0, zIndex: 200, width: 280,
-          background: "#0e0e1c", border: `1px solid ${color}40`, borderRadius: 12, padding: 14,
-          boxShadow: "0 16px 40px rgba(0,0,0,0.8)",
-        }}>
-          <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 10, color: "rgba(255,255,255,0.3)", marginBottom: 8 }}>UPLOAD LOGO</div>
+        <div style={{ position: "absolute", top: 56, left: 0, zIndex: 200, width: 280, background: "#0e0e1c", border: `1px solid ${color}40`, borderRadius: 12, padding: 14, boxShadow: "0 16px 40px rgba(0,0,0,0.8)" }}>
+          <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em", marginBottom: 8 }}>UPLOAD LOGO</div>
           
-          {/* ปุ่มเลือกไฟล์จากเครื่อง */}
-          <button 
-            onClick={() => fileInputRef.current.click()}
-            style={{
-              width: "100%", padding: "10px", marginBottom: "10px",
-              background: "rgba(255,255,255,0.05)", border: `1px dashed ${color}50`,
-              borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 12
-            }}
-          >
-            📁 เลือกไฟล์รูปภาพจากเครื่อง
-          </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept="image/*" 
-            style={{ display: "none" }} 
-          />
+          <button onClick={() => fileInputRef.current.click()} style={{ width: "100%", padding: "10px", marginBottom: "10px", background: "rgba(255,255,255,0.05)", border: `1px dashed ${color}50`, borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 12 }}>📁 เลือกรูปจากเครื่อง (Max 500KB)</button>
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" style={{ display: "none" }} />
 
-          <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 10, color: "rgba(255,255,255,0.3)", marginBottom: 8 }}>หรือระบุ URL</div>
-          <input
-            value={url} onChange={e => setUrl(e.target.value)}
-            placeholder="https://…"
-            style={{
-              width: "100%", background: "rgba(255,255,255,0.05)",
-              border: `1px solid ${color}35`, borderRadius: 6,
-              color: "#fff", fontSize: 12, padding: "8px 10px", marginBottom: 8,
-            }}
-          />
-
-          {url && (
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 8, padding: 8, background: "rgba(0,0,0,0.3)", borderRadius: 8 }}>
-              <img src={url} alt="preview" style={{ maxHeight: 60, maxWidth: "100%", objectFit: "contain" }} />
-            </div>
-          )}
-
+          <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.3)", letterSpacing: "0.2em", marginBottom: 8 }}>หรือระบุ URL รูปภาพ</div>
+          <input autoFocus value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === "Enter" && apply()} placeholder="https://…" style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: `1px solid ${color}35`, borderRadius: 6, color: "#fff", fontFamily: "system-ui", fontSize: 12, padding: "8px 10px", outline: "none", marginBottom: 8 }} />
+          
+          {url && <div style={{ display: "flex", justifyContent: "center", marginBottom: 8, padding: 8, background: "rgba(0,0,0,0.3)", borderRadius: 8 }}><img src={url} alt="preview" style={{ maxHeight: 48, objectFit: "contain" }} onError={e => e.target.src = ""} /></div>}
+          
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={apply} style={{ flex: 1, padding: "8px 0", background: `${color}18`, border: `1px solid ${color}35`, borderRadius: 7, color, cursor: "pointer", fontFamily: "'Bebas Neue'", fontSize: 13 }}>✓ บันทึก</button>
-            <button onClick={() => setOpen(false)} style={{ padding: "8px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7, color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 13 }}>✕</button>
+            <button onClick={apply} style={{ flex: 1, padding: "8px 0", background: `${color}18`, border: `1px solid ${color}35`, borderRadius: 7, color, cursor: "pointer", fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: "0.2em" }}>✓ ตั้งค่า</button>
+            {logoUrl && <button onClick={clear} style={{ padding: "8px 12px", background: "rgba(255,50,50,0.08)", border: "1px solid rgba(255,50,50,0.2)", borderRadius: 7, color: "#FF8080", cursor: "pointer", fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: "0.12em" }}>ลบ</button>}
+            <button onClick={() => setOpen(false)} style={{ padding: "8px 12px", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7, color: "rgba(255,255,255,0.3)", cursor: "pointer", fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: "0.12em" }}>✕</button>
           </div>
         </div>
       )}
@@ -172,18 +123,12 @@ function LogoPicker({ teamKey, logoUrl, color, onSave }) {
   );
 }
 
-// ─── BonusBadge ───────────────────────────────────────────────
+// ─── BonusBadge, FoulDots, TimeoutPips, ColorPicker ───────────
 function BonusBadge({ teamFouls }) {
-  if (teamFouls >= 10) return (
-    <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,40,40,0.2)", border: "1px solid rgba(255,40,40,0.5)", color: "#FF3333", fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.12em" }}>●● DBL BONUS</div>
-  );
-  if (teamFouls >= 5) return (
-    <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,140,0,0.18)", border: "1px solid rgba(255,140,0,0.45)", color: "#FFA500", fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.12em" }}>● BONUS</div>
-  );
+  if (teamFouls >= 10) return <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,40,40,0.2)", border: "1px solid rgba(255,40,40,0.5)", color: "#FF3333", fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.12em" }}>●● DBL BONUS</div>;
+  if (teamFouls >= 5) return <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,140,0,0.18)", border: "1px solid rgba(255,140,0,0.45)", color: "#FFA500", fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.12em" }}>● BONUS</div>;
   return null;
 }
-
-// ─── FoulDots ────────────────────────────────────────────────
 function FoulDots({ count, color }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -199,8 +144,6 @@ function FoulDots({ count, color }) {
     </div>
   );
 }
-
-// ─── TimeoutPips ─────────────────────────────────────────────
 function TimeoutPips({ count, max = 2, color }) {
   return (
     <div style={{ display: "flex", gap: 5 }}>
@@ -210,8 +153,6 @@ function TimeoutPips({ count, max = 2, color }) {
     </div>
   );
 }
-
-// ─── ColorPicker ─────────────────────────────────────────────
 const COLOR_PRESETS = ["#FF6B35","#FF3333","#FF1493","#9B59B6","#3498DB","#00D4FF","#00E87A","#FFD700","#FFFFFF","#FF8C00","#E74C3C","#2ECC71"];
 function ColorPicker({ teamKey, currentColor }) {
   const [open, setOpen] = useState(false);
@@ -229,70 +170,37 @@ function ColorPicker({ teamKey, currentColor }) {
   );
 }
 
-// ─── Team Card (with Logo) ────────────────────────────────────
+// ─── Team Card ────────────────────────────────────────────────
 function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(team.name);
-  const color      = team.color;
+  const color = team.color;
   const timeoutMax = getTimeoutMax(quarter);
-  const saveName   = () => { send("teamName", teamKey, nameInput.toUpperCase()); setEditing(false); };
+  const saveName = () => { send("teamName", teamKey, nameInput.toUpperCase()); setEditing(false); };
   const S = (s) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...s });
-  const nameFontSize = getNameFontSize(team.name);
 
   return (
     <div style={{ background: "linear-gradient(160deg,#0d0d1b,#080810)", border: `1px solid ${color}22`, borderRadius: 20, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <div style={{ height: 3, background: `linear-gradient(90deg,transparent,${color},transparent)` }} />
-
-      {/* ── HEADER: Logo + Color + Name ── */}
       <div style={{ padding: "14px 16px 0", display: "flex", alignItems: "center", gap: 10, minHeight: 56 }}>
-        {/* Logo picker */}
-        <LogoPicker
-          teamKey={teamKey}
-          logoUrl={logoUrl}
-          color={color}
-          onSave={onLogoSave}
-        />
-
+        <LogoPicker teamKey={teamKey} logoUrl={logoUrl} color={color} onSave={onLogoSave} />
         <ColorPicker teamKey={teamKey} currentColor={color} />
-
         {editing ? (
-          <input autoFocus value={nameInput} maxLength={20}
-            onChange={e => setNameInput(e.target.value.toUpperCase())}
-            onBlur={saveName} onKeyDown={e => e.key === "Enter" && saveName()}
-            style={{ background: "none", border: "none", borderBottom: `2px solid ${color}`, outline: "none", color, ...S({ fontSize: getNameFontSize(nameInput), letterSpacing: "0.1em", width: 160 }), transition: "font-size 0.15s" }}
-          />
+          <input autoFocus value={nameInput} maxLength={20} onChange={e => setNameInput(e.target.value.toUpperCase())} onBlur={saveName} onKeyDown={e => e.key === "Enter" && saveName()} style={{ background: "none", border: "none", borderBottom: `2px solid ${color}`, outline: "none", color, ...S({ fontSize: getNameFontSize(nameInput), letterSpacing: "0.1em", width: 160 }) }} />
         ) : (
-          <span onClick={() => setEditing(true)} style={{ color, cursor: "pointer", flex: 1, wordBreak: "break-word", lineHeight: 1.1, ...S({ fontSize: nameFontSize, letterSpacing: nameFontSize < 20 ? "0.05em" : "0.12em", fontWeight: 900 }), transition: "font-size 0.15s" }}>
-            {team.name}
-          </span>
+          <span onClick={() => setEditing(true)} style={{ color, cursor: "pointer", flex: 1, wordBreak: "break-word", lineHeight: 1.1, ...S({ fontSize: getNameFontSize(team.name), letterSpacing: "0.1em", fontWeight: 900 }) }}>{team.name}</span>
         )}
-
         <button onClick={() => setEditing(true)} style={{ background: "none", border: "none", cursor: "pointer", color, opacity: 0.3, fontSize: 13, flexShrink: 0 }}>✏️</button>
         <div style={{ marginLeft: "auto", flexShrink: 0 }}><BonusBadge teamFouls={team.teamFouls} /></div>
       </div>
-
-      {/* Score */}
       <div style={{ textAlign: "center", padding: "4px 0 2px" }}>
         <div style={{ ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.88 }), color, textShadow: `0 0 70px ${color}44` }}>{team.score}</div>
       </div>
-
-      {/* Score buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7, padding: "0 14px 14px" }}>
-        {[1, 2, 3].map(v => (
-          <button key={v} onClick={() => send("score", teamKey, v)} className="btn-scale"
-            style={{ ...S({ fontSize: 24, fontWeight: 900 }), background: `${color}14`, border: `1px solid ${color}33`, color, padding: "13px 0", borderRadius: 11, cursor: "pointer" }}>
-            +{v}
-          </button>
-        ))}
-        <button onClick={() => send("score", teamKey, -1)} className="btn-scale"
-          style={{ ...S({ fontSize: 24 }), background: "rgba(255,50,50,0.12)", border: "1px solid rgba(255,50,50,0.3)", color: "#FF5555", padding: "13px 0", borderRadius: 11, cursor: "pointer" }}>
-          -1
-        </button>
+        {[1, 2, 3].map(v => <button key={v} onClick={() => send("score", teamKey, v)} className="btn-scale" style={{ ...S({ fontSize: 24, fontWeight: 900 }), background: `${color}14`, border: `1px solid ${color}33`, color, padding: "13px 0", borderRadius: 11, cursor: "pointer" }}>+{v}</button>)}
+        <button onClick={() => send("score", teamKey, -1)} className="btn-scale" style={{ ...S({ fontSize: 24 }), background: "rgba(255,50,50,0.12)", border: "1px solid rgba(255,50,50,0.3)", color: "#FF5555", padding: "13px 0", borderRadius: 11, cursor: "pointer" }}>-1</button>
       </div>
-
       <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "0 14px" }} />
-
-      {/* Fouls + Timeouts */}
       <div style={{ padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 12, padding: "10px 12px", border: `1px solid ${team.teamFouls >= 10 ? "rgba(255,40,40,0.3)" : team.teamFouls >= 5 ? "rgba(255,140,0,0.25)" : "rgba(255,255,255,0.05)"}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
@@ -306,23 +214,18 @@ function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave }) {
             <button onClick={() => send("teamFoulReset", teamKey)} style={{ ...S({ fontSize: 13 }), background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.2)", padding: "7px 12px", borderRadius: 8, cursor: "pointer" }}>CLR</button>
           </div>
         </div>
-
         <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 12, padding: "10px 12px", border: "1px solid rgba(255,255,255,0.05)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <div>
               <div style={{ ...S({ fontSize: 10, letterSpacing: "0.4em" }), color: "rgba(255,255,255,0.3)" }}>TIMEOUTS</div>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.18)", fontFamily: "system-ui", marginTop: 1 }}>
-                {quarter <= 2 ? "Q1–Q2 (Half 1)" : quarter <= 4 ? "Q3–Q4 (Half 2)" : `OT${quarter - 4}`}
-              </div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.18)", fontFamily: "system-ui", marginTop: 1 }}>{quarter <= 2 ? "Q1–Q2" : quarter <= 4 ? "Q3–Q4" : `OT${quarter - 4}`}</div>
             </div>
             <div style={{ ...S({ fontSize: 30, fontWeight: 900, lineHeight: 1 }), color: "rgba(255,255,255,0.75)" }}>{team.timeouts}</div>
           </div>
           <TimeoutPips count={team.timeouts} max={timeoutMax} color={color} />
           <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
-            <button onClick={() => { send("timeout", teamKey, -1); playHorn(); }} disabled={team.timeouts <= 0}
-              style={{ flex: 1, ...S({ fontSize: 13 }), background: `${color}10`, border: `1px solid ${color}30`, color, padding: "7px 0", borderRadius: 8, cursor: "pointer", opacity: team.timeouts <= 0 ? 0.25 : 1 }}>USE T.O.</button>
-            <button onClick={() => send("timeout", teamKey, 1)} disabled={team.timeouts >= timeoutMax}
-              style={{ ...S({ fontSize: 13 }), background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", padding: "7px 16px", borderRadius: 8, cursor: "pointer", opacity: team.timeouts >= timeoutMax ? 0.25 : 1 }}>+1</button>
+            <button onClick={() => { send("timeout", teamKey, -1); playHorn(); }} disabled={team.timeouts <= 0} style={{ flex: 1, ...S({ fontSize: 13 }), background: `${color}10`, border: `1px solid ${color}30`, color, padding: "7px 0", borderRadius: 8, cursor: "pointer", opacity: team.timeouts <= 0 ? 0.25 : 1 }}>USE T.O.</button>
+            <button onClick={() => send("timeout", teamKey, 1)} disabled={team.timeouts >= timeoutMax} style={{ ...S({ fontSize: 13 }), background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", padding: "7px 16px", borderRadius: 8, cursor: "pointer", opacity: team.timeouts >= timeoutMax ? 0.25 : 1 }}>+1</button>
           </div>
         </div>
       </div>
@@ -330,13 +233,13 @@ function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave }) {
   );
 }
 
-// ─── Center Column ────────────────────────────────────────────
+// ─── Center Column (Game Clock, Shot Clock, Presets) ──────────
 function CenterCol({ state }) {
   const { clockTenths, isRunning, quarter, shotClockTenths, shotRunning, possession, jumpBall } = state;
   const shotSec = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
-  const shotWarn   = shotSec <= 10 && shotClockTenths > 0;
-  const shotColor  = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#00E87A";
+  const shotWarn = shotSec <= 10 && shotClockTenths > 0;
+  const shotColor = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#00E87A";
   const gameTimeUp = clockTenths === 0;
   const qLabel = quarter > 4 ? `OT${quarter - 4}` : `Q${quarter}`;
   const S = (s) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...s });
@@ -356,13 +259,14 @@ function CenterCol({ state }) {
           {shotRunning ? "⏹ STOP" : "▶ START"}<Hint>[ C ]</Hint>
         </button>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-          {[{s:24,c:"#FFD700",bg:"rgba(255,215,0,0.1)",bc:"rgba(255,215,0,0.4)",key:"Z"},{s:14,c:"#FFA500",bg:"rgba(255,165,0,0.1)",bc:"rgba(255,165,0,0.4)",key:"X"}].map(p=>(
-            <button key={p.s} className="btn-scale" onClick={()=>send("shotClockSet",null,p.s)} style={{...btn({padding:"14px 0",fontSize:38,color:p.c,background:p.bg,border:`1.5px solid ${p.bc}`})}}>{p.s}<Hint>[{p.key}]</Hint></button>
-          ))}
+          <button className="btn-scale" onClick={() => send("shotClockSet", null, 24)} style={{ ...btn({ padding: "14px 0", fontSize: 38, color: "#FFD700", background: "rgba(255,215,0,0.1)", border: "1.5px solid rgba(255,215,0,0.4)" }) }}>24<Hint>[Z]</Hint></button>
+          <button className="btn-scale" onClick={() => send("shotClockSet", null, 14)} style={{ ...btn({ padding: "14px 0", fontSize: 38, color: "#FFA500", background: "rgba(255,165,0,0.1)", border: "1.5px solid rgba(255,165,0,0.4)" }) }}>14<Hint>[X]</Hint></button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 6 }}>
-          <button onClick={()=>send("shotClockAdjust",null,10)} style={{...btn({padding:"6px 0",fontSize:13,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.35)"})}}>+1.0s</button>
-          <button onClick={()=>send("shotClockAdjust",null,-10)} style={{...btn({padding:"6px 0",fontSize:13,background:"rgba(255,60,60,0.05)",border:"1px solid rgba(255,60,60,0.15)",color:"rgba(255,100,100,0.55)"})}}> -1.0s</button>
+        
+        {/* ─── เพิ่มปุ่มปรับเวลา Shot Clock (+1s / -1s) ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 7 }}>
+          <button onClick={() => send("shotClockAdjust", null, 10)} style={{ ...btn({ padding: "6px 0", fontSize: 13, background: "rgba(0,232,122,0.06)", border: "1px solid rgba(0,232,122,0.15)", color: "rgba(0,232,122,0.6)" }) }}>+1.0s</button>
+          <button onClick={() => send("shotClockAdjust", null, -10)} style={{ ...btn({ padding: "6px 0", fontSize: 13, background: "rgba(255,55,55,0.06)", border: "1px solid rgba(255,55,55,0.15)", color: "rgba(255,100,100,0.55)" }) }}>-1.0s</button>
         </div>
       </div>
 
@@ -374,11 +278,29 @@ function CenterCol({ state }) {
           <div style={{ ...S({ fontSize: 13, letterSpacing: "0.4em" }), color: gameTimeUp ? "#FF6666" : isRunning ? "rgba(255,215,0,0.65)" : "rgba(255,255,255,0.2)", marginTop: 2 }}>{qLabel} {gameTimeUp ? "■ END" : isRunning ? "▶ LIVE" : "■ PAUSED"}</div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 7 }}>
-          <button className="btn-scale" onClick={()=>send("clockToggle")} style={{...btn({padding:"12px 0",fontSize:17,letterSpacing:"0.08em",background:isRunning?"rgba(255,55,55,0.15)":"rgba(0,232,122,0.1)",border:isRunning?"1.5px solid rgba(255,55,55,0.45)":"1.5px solid rgba(0,232,122,0.35)",color:isRunning?"#FF5555":"#00E87A"})}}>{isRunning?"⏹ STOP":"▶ START"}<Hint>[SPACE]</Hint></button>
-          <button className="btn-scale" onClick={()=>send("clockReset")} style={{...btn({padding:"12px 0",fontSize:17,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.4)"})}}>↺ RESET</button>
+          <button className="btn-scale" onClick={() => send("clockToggle")} style={{ ...btn({ padding: "12px 0", fontSize: 17, letterSpacing: "0.08em", background: isRunning ? "rgba(255,55,55,0.15)" : "rgba(0,232,122,0.1)", border: isRunning ? "1.5px solid rgba(255,55,55,0.45)" : "1.5px solid rgba(0,232,122,0.35)", color: isRunning ? "#FF5555" : "#00E87A" }) }}>{isRunning ? "⏹ STOP" : "▶ START"}<Hint>[SPC]</Hint></button>
+          <button className="btn-scale" onClick={() => send("clockReset")} style={{ ...btn({ padding: "12px 0", fontSize: 17, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }) }}>↺ RESET</button>
         </div>
+
+        {/* TIME PRESETS */}
+        <div style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "8px", marginTop: 5, marginBottom: 10 }}>
+          <div style={{ ...S({ fontSize: 10, letterSpacing: "0.2em" }), color: "rgba(255,255,255,0.3)", marginBottom: 6, textAlign: "center" }}>TIME PRESETS</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 5 }}>
+            <button onClick={() => { send("clockSet", null, 6000); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(255,215,0,0.08)", color: "#FFD700", border: "1px solid rgba(255,215,0,0.2)" }) }}>START 10:00</button>
+            <button onClick={() => { send("clockSet", null, 7200); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(255,215,0,0.08)", color: "#FFD700", border: "1px solid rgba(255,215,0,0.2)" }) }}>START 12:00</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 5 }}>
+            <button onClick={() => { send("clockSet", null, 1200); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(0,212,255,0.08)", color: "#00D4FF", border: "1px solid rgba(0,212,255,0.2)" }) }}>REST 02:00</button>
+            <button onClick={() => { send("clockSet", null, 9000); send("clockStop"); }} style={{ ...btn({ padding: "6px 0", fontSize: 12, background: "rgba(0,212,255,0.08)", color: "#00D4FF", border: "1px solid rgba(0,212,255,0.2)" }) }}>HALF 15:00</button>
+          </div>
+          <div style={{ display: "flex", gap: 5 }}>
+            <button onClick={() => { send("clockSet", null, 600); send("clockStop"); }} style={{ ...btn({ flex: 1, padding: "6px 0", fontSize: 12, background: "rgba(255,165,0,0.12)", color: "#FFA500", border: "1px solid rgba(255,165,0,0.3)" }) }}>T.O. 60s</button>
+            <button onClick={() => { send("clockSet", null, 300); send("clockStop"); }} style={{ ...btn({ flex: 1, padding: "6px 0", fontSize: 12, background: "rgba(255,165,0,0.12)", color: "#FFA500", border: "1px solid rgba(255,165,0,0.3)" }) }}>T.O. 30s</button>
+          </div>
+        </div>
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5, marginBottom: 8 }}>
-          {[{l:"+1m",v:600},{l:"+10s",v:100},{l:"+1s",v:10},{l:"+0.1",v:1}].map(p=><button key={p.l} onClick={()=>send("clockAdjust",null,p.v)} style={{...btn({padding:"6px 0",fontSize:11,background:"rgba(0,232,122,0.06)",border:"1px solid rgba(0,232,122,0.15)",color:"rgba(0,232,122,0.6)"})}}>{ p.l}</button>)}
+          {[{l:"+1m",v:600},{l:"+10s",v:100},{l:"+1s",v:10},{l:"+0.1",v:1}].map(p=><button key={p.l} onClick={()=>send("clockAdjust",null,p.v)} style={{...btn({padding:"6px 0",fontSize:11,background:"rgba(0,232,122,0.06)",border:"1px solid rgba(0,232,122,0.15)",color:"rgba(0,232,122,0.6)"})}}>{p.l}</button>)}
           {[{l:"-1m",v:-600},{l:"-10s",v:-100},{l:"-1s",v:-10},{l:"-0.1",v:-1}].map(p=><button key={p.l} onClick={()=>send("clockAdjust",null,p.v)} style={{...btn({padding:"6px 0",fontSize:11,background:"rgba(255,55,55,0.06)",border:"1px solid rgba(255,55,55,0.15)",color:"rgba(255,100,100,0.55)"})}}>{p.l}</button>)}
         </div>
         <div style={{ ...S({ fontSize: 10, letterSpacing: "0.35em" }), color: "rgba(255,255,255,0.22)", marginBottom: 5 }}>PERIOD</div>
@@ -387,7 +309,6 @@ function CenterCol({ state }) {
         </div>
       </div>
 
-      {/* Horn */}
       <button className="btn-scale" onClick={playHorn} style={{...btn({width:"100%",padding:"14px 0",fontSize:22,letterSpacing:"0.15em",background:"rgba(255,165,0,0.15)",border:"2px solid rgba(255,165,0,0.5)",color:"#FFA500",boxShadow:"0 4px 15px rgba(255,165,0,0.2)"})}}>📢 SOUND HORN<Hint style={{top:9}}>[H]</Hint></button>
 
       {/* Possession */}
@@ -416,7 +337,7 @@ function OverlayPreview({ state, logoA, logoB }) {
   const getQL = (q) => q <= 4 ? `Q${q}` : `OT${q-4}`;
 
   const TeamBox = ({ team, tKey, flip, logo }) => {
-    const isPoss   = possession === tKey;
+    const isPoss = possession === tKey;
     const nameSize = team.name.length <= 8 ? 24 : team.name.length <= 14 ? 18 : 13;
     const infoBlock = (
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 12px", minWidth: 130, alignItems: flip ? "flex-end" : "flex-start" }}>
@@ -485,7 +406,7 @@ function OverlayPreview({ state, logoA, logoB }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MAIN APP
+// MAIN APP COMPONENT
 // ═══════════════════════════════════════════════════════════════
 export default function App() {
   const [view, setView] = useState("home");
@@ -496,7 +417,6 @@ export default function App() {
     shotClockTenths: 240, shotRunning: false, possession: null, jumpBall: false,
   });
   const [connected, setConnected] = useState(false);
-  // Logo state — init from localStorage so it persists
   const [logoA, setLogoA] = useState(() => localStorage.getItem(LOGO_KEY_A) || "");
   const [logoB, setLogoB] = useState(() => localStorage.getItem(LOGO_KEY_B) || "");
 
@@ -504,7 +424,7 @@ export default function App() {
   const prevShotClock  = useRef(state.shotClockTenths);
   const prevQuarterRef = useRef(state.quarter);
 
-  // Also subscribe to Firebase for logo changes from PlayerManager
+  // Sync Logos with Firebase
   useEffect(() => {
     const uA = onValue(ref(db, `${DB_PATH}/teamA/logo`), (snap) => {
       const url = snap.val() || "";
@@ -520,14 +440,13 @@ export default function App() {
   const handleLogoSave = (teamKey, url) => {
     if (teamKey === "teamA") setLogoA(url);
     else setLogoB(url);
-    // Also write to Firebase
     set(ref(db, `${DB_PATH}/${teamKey}/logo`), url || "").catch(console.error);
-    // Sync localStorage
     const lsKey = teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B;
     if (url) localStorage.setItem(lsKey, url);
-    else     localStorage.removeItem(lsKey);
+    else localStorage.removeItem(lsKey);
   };
 
+  // Audio Triggers
   useEffect(() => {
     if (prevGameClock.current > 0 && state.clockTenths === 0) playBuzzer();
     if (prevShotClock.current > 0 && state.shotClockTenths === 0) playHorn();
@@ -535,6 +454,7 @@ export default function App() {
     prevShotClock.current = state.shotClockTenths;
   }, [state.clockTenths, state.shotClockTenths]);
 
+  // Quarter Changes -> Timeout Resets
   useEffect(() => {
     if (prevQuarterRef.current === state.quarter) return;
     prevQuarterRef.current = state.quarter;
@@ -547,6 +467,7 @@ export default function App() {
     });
   }, [state.quarter]);
 
+  // Keyboard shortcuts
   useEffect(() => {
     const kd = (e) => {
       if (e.target.tagName === "INPUT" || view !== "control") return;
@@ -562,9 +483,10 @@ export default function App() {
     return () => window.removeEventListener("keydown", kd);
   }, [view]);
 
+  // Socket sync
   useEffect(() => {
-    socket.on("connect",     () => setConnected(true));
-    socket.on("disconnect",  () => setConnected(false));
+    socket.on("connect", () => setConnected(true));
+    socket.on("disconnect", () => setConnected(false));
     socket.on("stateUpdate", (s) => {
       if (!s?.teamA) return;
       setState({ ...s, teamA: { techFouls: 0, ...s.teamA }, teamB: { techFouls: 0, ...s.teamB } });
@@ -577,13 +499,13 @@ export default function App() {
     setView(dest);
   };
 
-  // ── Routing ──
-  if (view === "home")    return <Home onNavigate={handleNavigate} />;
+  // Routing
+  if (view === "home") return <Home onNavigate={handleNavigate} />;
   if (view === "display") return <DisplayBoard onBack={() => setView("home")} />;
   if (view === "players") return <PlayerManager onBack={() => setView("home")} />;
 
-  // ── Control panel ──
   const S = (s) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...s });
+
   return (
     <div onClick={unlockAudio} style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 25% 0%,#13101e,#080810 55%)", padding: 14, fontFamily: "system-ui,sans-serif" }}>
       <style>{`
@@ -600,7 +522,7 @@ export default function App() {
           <button onClick={() => setView("home")} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "rgba(255,255,255,0.4)", ...S({ fontSize: 12, letterSpacing: "0.15em" }), padding: "6px 12px", cursor: "pointer" }}>← HOME</button>
           <div>
             <div style={{ ...S({ fontSize: 32, letterSpacing: "0.25em" }), background: "linear-gradient(90deg,#FF6B35,#FFD700 40%,#00D4FF)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>BASKETBALL SCOREBOARD</div>
-            <div style={{ ...S({ fontSize: 10, letterSpacing: "0.45em" }), color: "rgba(255,255,255,0.2)", marginTop: 2 }}>LIVE BROADCAST CONTROL · OBS READY</div>
+            <div style={{ ...S({ fontSize: 10, letterSpacing: "0.45em" }), color: "rgba(255,255,255,0.2)", marginTop: 2 }}>LIVE BROADCAST CONTROL</div>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -610,7 +532,6 @@ export default function App() {
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? "#00E87A" : "#FF5555" }} />
             {connected ? "CONNECTED" : "OFFLINE"}
           </div>
-          {state.isRunning && <div style={{ padding: "6px 14px", borderRadius: 100, background: "rgba(255,55,55,0.1)", border: "1px solid rgba(255,55,55,0.35)", ...S({ fontSize: 12, letterSpacing: "0.18em" }), color: "#FF5555" }}>● LIVE</div>}
           <button className="btn-scale" onClick={() => { if (window.confirm("RESET GAME ทั้งหมด?")) send("resetGame"); }} style={{ padding: "6px 16px", borderRadius: 100, background: "rgba(255,55,55,0.07)", border: "1px solid rgba(255,55,55,0.22)", color: "#FF7070", ...S({ fontSize: 12, letterSpacing: "0.15em" }), cursor: "pointer" }}>↺ RESET</button>
         </div>
       </div>
@@ -619,9 +540,6 @@ export default function App() {
       <div style={{ marginBottom: 12 }}>
         <div style={{ ...S({ fontSize: 10, letterSpacing: "0.4em" }), color: "rgba(255,255,255,0.17)", marginBottom: 4 }}>▼ OBS OVERLAY PREVIEW</div>
         <OverlayPreview state={state} logoA={logoA} logoB={logoB} />
-        <div style={{ ...S({ fontSize: 10, letterSpacing: "0.12em" }), color: "rgba(255,255,255,0.09)", textAlign: "center", marginTop: 4 }}>
-          OBS Browser Source → {SOCKET_URL}/overlay | 1920×1080 · ✅ Transparency
-        </div>
       </div>
 
       <div style={{ height: 1, background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)", marginBottom: 12 }} />
