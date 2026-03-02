@@ -1,4 +1,4 @@
-// DisplayBoard.jsx — จอสนาม · Pro FIBA Layout · Clear Split & Themes
+// DisplayBoard.jsx — จอสนาม · Pro FIBA Layout · Themes · 5 Fouls & Poss Arrow
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { db } from "./firebase";
@@ -115,15 +115,21 @@ function PlayerPanel({ players, color, align, theme }) {
   );
 }
 
-// ─── Team foul dots ───────────────────────────────────────────
+// ─── Team foul dots (ปรับเป็น 5 จุด) ───────────────────────────
 function TeamFoulDots({ count, color, theme }) {
   return (
-    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
-      {Array.from({ length: 10 }).map((_, i) => {
-        const active = i < count;
-        const c = active && i >= 5 ? "#FF3333" : active && count >= 5 ? "#FFA500" : color;
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+      {[1, 2, 3, 4, 5].map((i) => {
+        const active = i <= count;
+        const c = active && count >= 5 ? "#FF3333" : color; // เปลี่ยนเป็นสีแดงถ้าครบ 5
         return (
-          <div key={i} style={{ width: 12, height: 12, borderRadius: "50%", background: active ? c : theme.stripe, border: `1px solid ${active ? c : theme.border}`, boxShadow: active ? `0 0 6px ${c}88` : "none", transition: "all 0.25s" }} />
+          <div key={i} style={{ 
+            width: 14, height: 14, borderRadius: "50%", 
+            background: active ? c : theme.stripe, 
+            border: `1px solid ${active ? c : theme.border}`, 
+            boxShadow: active ? `0 0 8px ${c}88` : "none", 
+            transition: "all 0.25s" 
+          }} />
         );
       })}
     </div>
@@ -134,6 +140,9 @@ function TeamFoulDots({ count, color, theme }) {
 function SidePanel({ team, players, teamName, logo, align, theme }) {
   const isLeft = align === "left";
   const color  = team.color;
+  
+  // จำกัดการแสดงผลตัวเลขฟาวล์สูงสุดที่ 5
+  const displayFouls = Math.min(team.teamFouls, 5);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", background: theme.panelLR, borderRight: isLeft ? `2px solid ${color}40` : "none", borderLeft: isLeft ? "none" : `2px solid ${color}40`, overflow: "hidden", minWidth: 0 }}>
@@ -155,11 +164,12 @@ function SidePanel({ team, players, teamName, logo, align, theme }) {
         <div style={{ display: "flex", flexDirection: isLeft ? "row" : "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <div style={{ textAlign: isLeft ? "left" : "right" }}>
             <div style={{ fontFamily: "'Barlow Condensed'", fontSize: 10, fontWeight: 800, color: theme.textDim, letterSpacing: "0.2em" }}>TEAM FOULS</div>
-            <div style={{ fontFamily: "'Oswald'", fontSize: 32, fontWeight: 700, lineHeight: 1, color: team.teamFouls >= 10 ? "#FF3333" : team.teamFouls >= 5 ? "#FFA500" : theme.text }}>{team.teamFouls}</div>
+            <div style={{ fontFamily: "'Oswald'", fontSize: 32, fontWeight: 700, lineHeight: 1, color: team.teamFouls >= 5 ? "#FF3333" : theme.text }}>{displayFouls}</div>
           </div>
           <div style={{ flex: 1 }}>
             <TeamFoulDots count={team.teamFouls} color={color} theme={theme} />
-            {team.teamFouls >= 5 && <div style={{ fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.2em", color: team.teamFouls >= 10 ? "#FF3333" : "#FFA500", textAlign: "center", marginTop: 4 }}>{team.teamFouls >= 10 ? "● DBL BONUS" : "● BONUS"}</div>}
+            {/* แสดงคำว่า BONUS เมื่อฟาวล์ถึง 5 */}
+            {team.teamFouls >= 5 && <div style={{ fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: "0.2em", color: "#FF3333", textAlign: "center", marginTop: 4 }}>● BONUS</div>}
           </div>
         </div>
       </div>
@@ -304,7 +314,7 @@ export default function DisplayBoard({ onBack }) {
 
         <SidePanel team={teamA} players={fbA.players} teamName={fbA.name || teamA.name} logo={fbA.logo} align="left" theme={currentTheme} />
 
-        {/* ── CENTER PANEL (Pro Layout with Divider) ── */}
+        {/* ── CENTER PANEL (Pro Layout) ── */}
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between",
           background: currentTheme.panelC, borderLeft: `2px solid ${currentTheme.border}`, borderRight: `2px solid ${currentTheme.border}`,
@@ -368,11 +378,12 @@ export default function DisplayBoard({ onBack }) {
             border: `1px solid ${currentTheme.border}`,
             padding: "8px 16px", margin: "10px 0 15px 0"
           }}>
-            {/* Team A Poss */}
+            {/* Team A Poss (Arrow points LEFT to Team A if they have possession) */}
             <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ fontFamily: "'Oswald'", fontSize: 24, color: possession === "teamA" ? teamA.color : "transparent", textShadow: possession === "teamA" ? `0 0 12px ${teamA.color}` : "none", transition: "all 0.3s", lineHeight: 1, marginTop: -2 }}>◀</div>
               <div style={{ width: 12, height: 12, borderRadius: "50%", background: possession === "teamA" ? teamA.color : currentTheme.border, boxShadow: possession === "teamA" ? `0 0 10px ${teamA.color}` : "none", transition: "all 0.3s" }} />
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, color: possession === "teamA" ? teamA.color : currentTheme.textDim, transition: "all 0.3s", letterSpacing: "0.05em" }}>
-                {possession === "teamA" ? "◀ POSS" : teamA.name}
+                {possession === "teamA" ? "POSS" : teamA.name}
               </div>
             </div>
 
@@ -388,12 +399,13 @@ export default function DisplayBoard({ onBack }) {
               )}
             </div>
 
-            {/* Team B Poss */}
+            {/* Team B Poss (Arrow points RIGHT to Team B if they have possession) */}
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
               <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, color: possession === "teamB" ? teamB.color : currentTheme.textDim, transition: "all 0.3s", letterSpacing: "0.05em" }}>
-                {possession === "teamB" ? "POSS ▶" : teamB.name}
+                {possession === "teamB" ? "POSS" : teamB.name}
               </div>
               <div style={{ width: 12, height: 12, borderRadius: "50%", background: possession === "teamB" ? teamB.color : currentTheme.border, boxShadow: possession === "teamB" ? `0 0 10px ${teamB.color}` : "none", transition: "all 0.3s" }} />
+              <div style={{ fontFamily: "'Oswald'", fontSize: 24, color: possession === "teamB" ? teamB.color : "transparent", textShadow: possession === "teamB" ? `0 0 12px ${teamB.color}` : "none", transition: "all 0.3s", lineHeight: 1, marginTop: -2 }}>▶</div>
             </div>
           </div>
 

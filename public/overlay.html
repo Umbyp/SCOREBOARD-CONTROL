@@ -49,15 +49,22 @@
     
     .tname { font-family: 'Oswald',sans-serif; font-size: 26px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; line-height: 1.1; }
     
-    .meta-row { display: flex; gap: 8px; align-items: center; margin-top: 3px; width: 100%; }
+    .meta-row { display: flex; gap: 10px; align-items: center; margin-top: 3px; width: 100%; }
     #box-b .meta-row { flex-direction: row-reverse; }
     
-    .torow { display: flex; gap: 3px; }
-    .tp { width: 13px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); }
+    /* Labels สำหรับ Timeout & Fouls */
+    .meta-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; margin-right: 4px; }
+    #box-b .meta-label { margin-right: 0; margin-left: 4px; }
+
+    .torow { display: flex; gap: 3px; align-items: center; }
+    .tp { width: 11px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); }
     .tp.on { background: #fff; }
     
-    .foul-num { font-family: 'Oswald',sans-serif; font-size: 14px; font-weight: 700; color: #fff; }
-    .bonus-tag { display: none; font-family: 'Barlow Condensed',sans-serif; font-size: 10px; font-weight: 800; color: #FFD700; padding: 1px 5px; border-radius: 3px; background: rgba(255,215,0,0.12); border: 1px solid rgba(255,215,0,0.3); }
+    .foul-wrapper { display: flex; align-items: center; }
+    .foul-num { font-family: 'Oswald',sans-serif; font-size: 14px; font-weight: 700; color: #fff; line-height: 1; }
+    
+    .bonus-tag { display: none; font-family: 'Barlow Condensed',sans-serif; font-size: 10px; font-weight: 800; color: #FFD700; padding: 1px 5px; border-radius: 3px; background: rgba(255,215,0,0.12); border: 1px solid rgba(255,215,0,0.3); margin-left: 6px; }
+    #box-b .bonus-tag { margin-left: 0; margin-right: 6px; }
     .bonus-tag.on { display: block; }
     
     .score-area { width: 88px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); }
@@ -166,8 +173,14 @@
           <div class="tname" id="nm-a">HOME</div>
         </div>
         <div class="meta-row">
-          <div class="torow" id="to-a"></div>
-          <div class="foul-num" id="fn-a">0</div>
+          <div class="torow">
+            <span class="meta-label">T.O.</span>
+            <div id="to-a" style="display: flex; gap: 3px;"></div>
+          </div>
+          <div class="foul-wrapper">
+            <span class="meta-label">FOULS</span>
+            <div class="foul-num" id="fn-a">0</div>
+          </div>
           <div class="bonus-tag" id="bt-a">BONUS</div>
         </div>
       </div>
@@ -199,8 +212,14 @@
           <div class="tname" id="nm-b">AWAY</div>
         </div>
         <div class="meta-row">
-          <div class="torow" id="to-b"></div>
-          <div class="foul-num" id="fn-b">0</div>
+          <div class="torow">
+            <span class="meta-label">T.O.</span>
+            <div id="to-b" style="display: flex; gap: 3px; flex-direction: row-reverse;"></div>
+          </div>
+          <div class="foul-wrapper" style="flex-direction: row-reverse;">
+            <span class="meta-label">FOULS</span>
+            <div class="foul-num" id="fn-b">0</div>
+          </div>
           <div class="bonus-tag" id="bt-b">BONUS</div>
         </div>
       </div>

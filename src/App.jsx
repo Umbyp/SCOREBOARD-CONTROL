@@ -126,25 +126,31 @@ function LogoPicker({ teamKey, logoUrl, color, onSave }) {
 
 // ─── BonusBadge, FoulDots, TimeoutPips, ColorPicker ───────────
 function BonusBadge({ teamFouls }) {
-  if (teamFouls >= 10) return <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,40,40,0.2)", border: "1px solid rgba(255,40,40,0.5)", color: "#FF3333", fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.12em" }}>●● DBL BONUS</div>;
-  if (teamFouls >= 5) return <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,140,0,0.18)", border: "1px solid rgba(255,140,0,0.45)", color: "#FFA500", fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.12em" }}>● BONUS</div>;
+  if (teamFouls >= 5) return <div style={{ padding: "3px 8px", borderRadius: 5, background: "rgba(255,51,51,0.18)", border: "1px solid rgba(255,51,51,0.45)", color: "#FF3333", fontFamily: "'Bebas Neue'", fontSize: 11, letterSpacing: "0.12em" }}>● BONUS</div>;
   return null;
 }
+
+// ปรับให้โชว์แค่ 5 จุด (1 แถว)
 function FoulDots({ count, color }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {[0, 1].map(row => (
-        <div key={row} style={{ display: "flex", gap: 6 }}>
-          {Array.from({ length: 5 }).map((_, col) => {
-            const idx = row * 5 + col, active = idx < count;
-            const c = active && idx >= 5 ? "#FF3333" : active && count >= 5 ? "#FFA500" : color;
-            return <div key={col} style={{ width: 18, height: 18, borderRadius: "50%", background: active ? c : "rgba(255,255,255,0.06)", border: `1.5px solid ${active ? c : "rgba(255,255,255,0.1)"}`, boxShadow: active ? `0 0 7px ${c}88` : "none", transition: "all 0.2s", transform: active ? "scale(1)" : "scale(0.82)" }} />;
-          })}
-        </div>
-      ))}
+    <div style={{ display: "flex", gap: 6 }}>
+      {[1, 2, 3, 4, 5].map((i) => {
+        const active = i <= count;
+        const c = active && count >= 5 ? "#FF3333" : color;
+        return (
+          <div key={i} style={{ 
+            width: 18, height: 18, borderRadius: "50%", 
+            background: active ? c : "rgba(255,255,255,0.06)", 
+            border: `1.5px solid ${active ? c : "rgba(255,255,255,0.1)"}`, 
+            boxShadow: active ? `0 0 7px ${c}88` : "none", 
+            transition: "all 0.2s", transform: active ? "scale(1)" : "scale(0.82)" 
+          }} />
+        );
+      })}
     </div>
   );
 }
+
 function TimeoutPips({ count, max = 2, color }) {
   return (
     <div style={{ display: "flex", gap: 5 }}>
@@ -375,7 +381,8 @@ function CenterCol({ state }) {
   );
 }
 
-// ─── Overlay Preview (ดีไซน์ใหม่: ลูกศรชี้ออกข้าง) ──────────
+
+// ─── Overlay Preview (อัปเดตใส่คำว่า T.O. และ FOULS) ──────────
 function OverlayPreview({ state, logoA, logoB }) {
   const { teamA, teamB, quarter, clockTenths, shotClockTenths, possession, jumpBall } = state;
   const shotSec = shotClockTenths / 10;
@@ -389,6 +396,9 @@ function OverlayPreview({ state, logoA, logoB }) {
   const TeamBox = ({ team, tKey, flip, logo }) => {
     const isPoss = possession === tKey;
     const nameSize = team.name.length <= 8 ? 24 : team.name.length <= 14 ? 18 : 13;
+    
+    // กันตัวเลขทะลุ 5
+    const displayFouls = Math.min(team.teamFouls, 5);
     
     return (
       <div style={{ display: "flex", flexDirection: "row", alignItems: "stretch", height: "100%" }}>
@@ -412,11 +422,23 @@ function OverlayPreview({ state, logoA, logoB }) {
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: flip ? "row-reverse" : "row" }}>
             <span style={{ fontFamily: O, fontSize: nameSize, fontWeight: 700, color: "#FFF", lineHeight: 1.1 }}>{team.name}</span>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3, flexDirection: flip ? "row-reverse" : "row" }}>
-            <div style={{ display: "flex", gap: 3 }}>
-              {[...Array(2)].map((_, i) => <div key={i} style={{ width: 11, height: 4, borderRadius: 2, background: i < team.timeouts ? "#FFF" : "rgba(255,255,255,0.15)" }} />)}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 3, flexDirection: flip ? "row-reverse" : "row" }}>
+            
+            {/* ส่วน Timeout */}
+            <div style={{ display: "flex", alignItems: "center", gap: 3, flexDirection: flip ? "row-reverse" : "row" }}>
+              <span style={{ fontFamily: BC, fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>T.O.</span>
+              <div style={{ display: "flex", gap: 3 }}>
+                {[...Array(2)].map((_, i) => <div key={i} style={{ width: 11, height: 4, borderRadius: 2, background: i < team.timeouts ? "#FFF" : "rgba(255,255,255,0.15)" }} />)}
+              </div>
             </div>
-            <span style={{ fontFamily: O, fontSize: 12, fontWeight: 700, color: team.teamFouls >= 5 ? "#FF3333" : "#FFF" }}>{team.teamFouls}</span>
+
+            {/* ส่วน Fouls */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, flexDirection: flip ? "row-reverse" : "row" }}>
+              <span style={{ fontFamily: BC, fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>FOULS</span>
+              <span style={{ fontFamily: O, fontSize: 14, fontWeight: 700, color: team.teamFouls >= 5 ? "#FF3333" : "#FFF", lineHeight: 1 }}>{displayFouls}</span>
+            </div>
+
+            {team.teamFouls >= 5 && <span style={{ fontFamily: BC, fontSize: 9, fontWeight: 800, color: "#FFD700" }}>BONUS</span>}
           </div>
         </div>
 
