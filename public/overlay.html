@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Basketball Overlay - Flat & Smooth Sync</title>
+  <title>Basketball Overlay - Pro Sync</title>
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Barlow+Condensed:wght@500;700;800&family=Bebas+Neue&display=swap" rel="stylesheet" />
   <style>
     /* 1920x1080 Layout for OBS */
@@ -41,7 +41,9 @@
     .name-row { display: flex; align-items: center; gap: 7px; width: 100%; }
     #box-b .name-row { flex-direction: row-reverse; }
     
-    .poss { font-family: 'Oswald',sans-serif; font-size: 15px; color: var(--tc); visibility: hidden; }
+    /* ลูกศรชี้ออกข้าง (Possession) */
+    .poss-arrow { display: flex; align-items: center; justify-content: center; width: 28px; background: rgba(0,0,0,0.3); }
+    .poss { font-family: 'Oswald',sans-serif; font-size: 20px; color: var(--tc); visibility: hidden; line-height: 1; }
     .poss.on { visibility: visible; animation: poss-pulse 1.5s infinite; }
     @keyframes poss-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
     
@@ -150,13 +152,17 @@
   <div id="main-bar">
     <div class="team-box" id="box-a" style="--tc:#FF6B35;">
       <div class="color-strip"></div>
+      
+      <div class="poss-arrow">
+        <div class="poss" id="poss-a">◀</div>
+      </div>
+
       <div class="logo-wrap">
         <div id="logo-ph-a" class="logo-ph">H</div>
         <img id="logo-img-a" class="logo-img" src="" alt="logo" />
       </div>
       <div class="team-info">
         <div class="name-row">
-          <div class="poss" id="poss-a">◀</div>
           <div class="tname" id="nm-a">HOME</div>
         </div>
         <div class="meta-row">
@@ -190,7 +196,6 @@
       <div class="score-area"><div class="score-num" id="sc-b">0</div></div>
       <div class="team-info">
         <div class="name-row">
-          <div class="poss" id="poss-b">▶</div>
           <div class="tname" id="nm-b">AWAY</div>
         </div>
         <div class="meta-row">
@@ -203,6 +208,11 @@
         <div id="logo-ph-b" class="logo-ph">A</div>
         <img id="logo-img-b" class="logo-img" src="" alt="logo" />
       </div>
+      
+      <div class="poss-arrow">
+        <div class="poss" id="poss-b">▶</div>
+      </div>
+      
       <div class="color-strip"></div>
     </div>
   </div>
@@ -254,11 +264,13 @@
       const s = Math.floor(t / 10);
       return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
     }
-    return (t / 10).toFixed(1);
+    // ปรับรูปแบบเวลาให้ไม่มี 0 นำหน้า (เช่น 9.9, 0.0)
+    return Math.floor(t / 10) + "." + Math.floor(t % 10);
   }
+  
   function fmtShot(t) {
     t = Math.max(0, t);
-    return t > 100 ? Math.ceil(t / 10) : (t / 10).toFixed(1);
+    return t > 100 ? Math.ceil(t / 10) : Math.floor(t / 10) + "." + Math.floor(t % 10);
   }
 
   // --- 3. Main Update Function ---
@@ -295,9 +307,12 @@
     const l = team.name.length;
     nmEl.style.fontSize = l <= 8 ? "26px" : l <= 12 ? "20px" : "16px";
 
-    document.getElementById(`fn-${id}`).textContent = team.teamFouls;
+    // ปรับ Team Fouls ให้โชว์แค่ 5
+    const displayFouls = Math.min(team.teamFouls, 5);
+    document.getElementById(`fn-${id}`).textContent = displayFouls;
     document.getElementById(`fn-${id}`).style.color = team.teamFouls >= 5 ? "#FFA500" : "#fff";
     document.getElementById(`bt-${id}`).className = `bonus-tag ${team.teamFouls >= 5 ? 'on' : ''}`;
+    
     document.getElementById(`poss-${id}`).className = `poss ${isPoss ? 'on' : ''}`;
     
     const toWrap = document.getElementById(`to-${id}`);

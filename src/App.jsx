@@ -1,3 +1,4 @@
+// นำโค้ดนี้ไปแทนที่ไฟล์ App.jsx หรือ ControlPanel ที่มีอยู่ทั้งหมดครับ
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { db } from "./firebase";
@@ -48,7 +49,7 @@ function formatGameClock(tenths) {
     const s = Math.floor(t / 10);
     return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   }
-  return `${String(Math.floor(t/10)).padStart(2,"0")}.${Math.floor(t%10)}`;
+  return `${Math.floor(t / 10)}.${Math.floor(t % 10)}`;
 }
 function formatShotClock(tenths) {
   const t = Math.max(0, tenths);
@@ -240,7 +241,6 @@ function CenterCol({ state }) {
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const shotWarn = shotSec <= 10 && shotClockTenths > 0;
   
-  // ปรับสีให้ดู Flat ไม่นีออน
   const shotColor = shotUrgent ? "#FF3333" : shotWarn ? "#FFA500" : "#00E87A";
   
   const gameTimeUp = clockTenths === 0;
@@ -251,26 +251,14 @@ function CenterCol({ state }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {/* Shot Clock - ปรับใหม่: ไม่ห้อย (ไม่มี Progress) และไม่นีออน */}
-      <div style={{ 
-        background: "rgba(0,0,0,0.35)", 
-        border: `1px solid ${shotUrgent ? "rgba(255,40,40,0.4)" : "rgba(255,255,255,0.08)"}`, 
-        borderRadius: 20, 
-        padding: "16px 16px 12px", 
-        transition: "all 0.3s" 
-      }}>
+      {/* Shot Clock */}
+      <div style={{ background: "rgba(0,0,0,0.35)", border: `1px solid ${shotUrgent ? "rgba(255,40,40,0.4)" : "rgba(255,255,255,0.08)"}`, borderRadius: 20, padding: "16px 16px 12px", transition: "all 0.3s" }}>
         <div style={{ ...S({ fontSize: 11, letterSpacing: "0.5em" }), color: "rgba(255,255,255,0.35)", textAlign: "center", marginBottom: 2 }}>SHOT CLOCK</div>
         
-        {/* ตัวเลขแบบเส้นเดียว คมๆ ไม่ฟุ้ง */}
-        <div style={{ 
-          textAlign: "center", 
-          ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.85 }), 
-          color: shotColor 
-        }}>
+        <div style={{ textAlign: "center", ...S({ fontSize: 140, fontWeight: 900, lineHeight: 0.85 }), color: shotColor }}>
           {formatShotClock(shotClockTenths)}
         </div>
         
-        {/* เพิ่มช่องว่างแทน Progress Bar เดิมเพื่อให้ไม่ติดกับปุ่มเกินไป */}
         <div style={{ height: 12 }} />
 
         <button className="btn-scale" onClick={() => send("shotClockToggle")} style={{ ...btn({ width: "100%", padding: "13px 0", fontSize: 19, letterSpacing: "0.15em", marginBottom: 7 }), background: shotRunning ? "rgba(255,55,55,0.12)" : "rgba(0,232,122,0.08)", border: shotRunning ? "1px solid rgba(255,55,55,0.3)" : "1px solid rgba(0,232,122,0.25)", color: shotRunning ? "#FF5555" : "#00E87A" }}>
@@ -328,22 +316,66 @@ function CenterCol({ state }) {
 
       <button className="btn-scale" onClick={playHorn} style={{...btn({width:"100%",padding:"14px 0",fontSize:22,letterSpacing:"0.15em",background:"rgba(255,165,0,0.12)",border:"1px solid rgba(255,165,0,0.4)",color:"#FFA500"})}}>📢 SOUND HORN<Hint style={{top:9}}>[H]</Hint></button>
 
-      {/* Possession */}
+      {/* Possession - ปรับลูกศรชี้ออกข้าง */}
+      {/* Possession - กดฝั่งที่ได้บอล ลูกศรจะเด้งไปชี้ฝั่งตรงข้ามอัตโนมัติ */}
       <div style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 18, padding: "12px 14px" }}>
+        <div style={{ ...S({ fontSize: 11, letterSpacing: "0.15em" }), color: "rgba(255,255,255,0.4)", textAlign: "center", marginBottom: 8 }}>
+          POSSESSION (กดทีมที่ได้บอล ลูกศรจะชี้ไปอีกฝั่ง)
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-          {[
-            { label: "◀ BALL", action: () => send("possession", null, possession === "teamA" ? null : "teamA"), active: possession === "teamA", color: "#FF6B35" },
-            { label: "JUMP ⊕", action: () => send("jumpBall"), active: jumpBall, color: "#FFD700" },
-            { label: "BALL ▶", action: () => send("possession", null, possession === "teamB" ? null : "teamB"), active: possession === "teamB", color: "#00D4FF" },
-          ].map((b, i) => (
-            <button key={i} onClick={b.action} style={{...btn({padding:"9px 0",fontSize:11,letterSpacing:"0.06em",background:b.active?`${b.color}12`:"rgba(255,255,255,0.04)",border:b.active?`1px solid ${b.color}45`:"1px solid rgba(255,255,255,0.08)",color:b.active?b.color:"rgba(255,255,255,0.3)"})}}>{b.label}</button>
-          ))}
+          
+          {/* ปุ่ม Team A: กดปุ๊บส่งค่า teamB เพื่อให้ลูกศรชี้ไปทาง B */}
+          <button 
+            onClick={() => send("possession", null, possession === "teamB" ? null : "teamB")} 
+            style={{
+              ...btn({ padding: "6px 0", fontSize: 12, letterSpacing: "0.06em" }),
+              background: possession === "teamB" ? "rgba(255,107,53,0.15)" : "rgba(255,255,255,0.04)",
+              border: possession === "teamB" ? "1px solid rgba(255,107,53,0.4)" : "1px solid rgba(255,255,255,0.08)",
+              color: possession === "teamB" ? "#FF6B35" : "rgba(255,255,255,0.3)"
+            }}
+          >
+            A แย่งบอลได้<br/>
+            <span style={{ fontSize: 9, color: possession === "teamB" ? "rgba(255,107,53,0.8)" : "rgba(255,255,255,0.3)", fontFamily: "system-ui" }}>
+              ➔ ศรชี้ B
+            </span>
+          </button>
+          
+          {/* ปุ่ม JUMP BALL */}
+          <button 
+            onClick={() => send("jumpBall")} 
+            style={{
+              ...btn({ padding: "9px 0", fontSize: 14, letterSpacing: "0.06em" }),
+              background: jumpBall ? "rgba(255,215,0,0.15)" : "rgba(255,255,255,0.04)",
+              border: jumpBall ? "1px solid rgba(255,215,0,0.4)" : "1px solid rgba(255,255,255,0.08)",
+              color: jumpBall ? "#FFD700" : "rgba(255,255,255,0.3)"
+            }}
+          >
+            JUMP ⊕
+          </button>
+          
+          {/* ปุ่ม Team B: กดปุ๊บส่งค่า teamA เพื่อให้ลูกศรชี้ไปทาง A */}
+          <button 
+            onClick={() => send("possession", null, possession === "teamA" ? null : "teamA")} 
+            style={{
+              ...btn({ padding: "6px 0", fontSize: 12, letterSpacing: "0.06em" }),
+              background: possession === "teamA" ? "rgba(0,212,255,0.15)" : "rgba(255,255,255,0.04)",
+              border: possession === "teamA" ? "1px solid rgba(0,212,255,0.4)" : "1px solid rgba(255,255,255,0.08)",
+              color: possession === "teamA" ? "#00D4FF" : "rgba(255,255,255,0.3)"
+            }}
+          >
+            B แย่งบอลได้<br/>
+            <span style={{ fontSize: 9, color: possession === "teamA" ? "rgba(0,212,255,0.8)" : "rgba(255,255,255,0.3)", fontFamily: "system-ui" }}>
+              ศรชี้ A ⬅
+            </span>
+          </button>
+
         </div>
       </div>
     </div>
   );
 }
-// ─── Overlay Preview (ดีไซน์ใหม่: ล็อคขนาดกล่องนิ่ง 100% ไม่ขยับตามตัวเลข) ──────────
+
+// ─── Overlay Preview (ดีไซน์ใหม่: ลูกศรชี้ออกข้าง) ──────────
 function OverlayPreview({ state, logoA, logoB }) {
   const { teamA, teamB, quarter, clockTenths, shotClockTenths, possession, jumpBall } = state;
   const shotSec = shotClockTenths / 10;
@@ -361,15 +393,23 @@ function OverlayPreview({ state, logoA, logoB }) {
     return (
       <div style={{ display: "flex", flexDirection: "row", alignItems: "stretch", height: "100%" }}>
         {!flip && <div style={{ width: 5, background: team.color }} />}
+        
+        {/* ให้ลูกศร Poss ชี้ออกทางซ้ายสุด */}
+        {!flip && isPoss && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, background: "rgba(0,0,0,0.3)", paddingRight: 4 }}>
+            <span style={{ fontFamily: O, fontSize: 16, color: team.color, lineHeight: 1 }}>◀</span>
+          </div>
+        )}
+
         {!flip && (
            <div style={{ width: 52, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)", flexShrink: 0 }}>
              {logo ? <img src={logo} alt="" style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 3 }} /> 
                    : <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${team.color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue'", fontSize: 16, color: team.color, opacity: 0.5 }}>{team.name[0]}</div>}
            </div>
         )}
+        
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 12px", minWidth: 140, alignItems: flip ? "flex-end" : "flex-start" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexDirection: flip ? "row-reverse" : "row" }}>
-            {isPoss && <span style={{ fontFamily: O, fontSize: 12, color: team.color }}>{flip ? "▶" : "◀"}</span>}
             <span style={{ fontFamily: O, fontSize: nameSize, fontWeight: 700, color: "#FFF", lineHeight: 1.1 }}>{team.name}</span>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 3, flexDirection: flip ? "row-reverse" : "row" }}>
@@ -379,15 +419,25 @@ function OverlayPreview({ state, logoA, logoB }) {
             <span style={{ fontFamily: O, fontSize: 12, fontWeight: 700, color: team.teamFouls >= 5 ? "#FF3333" : "#FFF" }}>{team.teamFouls}</span>
           </div>
         </div>
+
         <div style={{ width: 76, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.4)" }}>
           <span style={{ fontFamily: O, fontSize: 44, fontWeight: 700, color: team.color, lineHeight: 1 }}>{team.score}</span>
         </div>
+
         {flip && (
            <div style={{ width: 52, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.3)", flexShrink: 0 }}>
              {logo ? <img src={logo} alt="" style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 3 }} /> 
                    : <div style={{ width: 36, height: 36, borderRadius: "50%", background: `${team.color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue'", fontSize: 16, color: team.color, opacity: 0.5 }}>{team.name[0]}</div>}
            </div>
         )}
+
+        {/* ให้ลูกศร Poss ชี้ออกทางขวาสุด */}
+        {flip && isPoss && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 20, background: "rgba(0,0,0,0.3)", paddingLeft: 4 }}>
+            <span style={{ fontFamily: O, fontSize: 16, color: team.color, lineHeight: 1 }}>▶</span>
+          </div>
+        )}
+
         {flip && <div style={{ width: 5, background: team.color }} />}
       </div>
     );
@@ -406,30 +456,27 @@ function OverlayPreview({ state, logoA, logoB }) {
       }}>
         <TeamBox team={teamA} tKey="teamA" flip={false} logo={logoA} />
 
-        {/* CENTER CONTROL BLOCK: ล็อคความกว้างคงที่ */}
         <div style={{ 
           display: "flex", 
           alignItems: "center", 
           background: "rgba(0,0,0,0.6)", 
-          width: 200, // ล็อคขนาดคงที่ กล่องจะไม่ขยับ
+          width: 200,
           justifyContent: "center",
           position: "relative"
         }}>
           {jumpBall && <div style={{ position: "absolute", top: 3, fontFamily: BC, fontSize: 8, color: "#FFD700", letterSpacing: "0.2em" }}>⊕ JUMP</div>}
           
-          {/* Game Clock - ล็อคความกว้างตัวเลข */}
           <div style={{ width: 75, textAlign: "center" }}>
             <div style={{ fontFamily: BC, fontSize: 9, color: "rgba(255,255,255,0.3)", marginBottom: -2 }}>GAME</div>
             <div style={{ 
               fontFamily: O, fontSize: 28, fontWeight: 700, 
               color: gameTimeUp ? "#FF2222" : "#FFF", 
-              fontVariantNumeric: "tabular-nums" // ตัวเลขความกว้างเท่ากันทุกตัว
+              fontVariantNumeric: "tabular-nums"
             }}>
               {formatGameClock(clockTenths)}
             </div>
           </div>
 
-          {/* Period - กั้นกลางนิ่งๆ */}
           <div style={{ 
             width: 40, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
             borderLeft: "1px solid rgba(255,255,255,0.1)", borderRight: "1px solid rgba(255,255,255,0.1)",
@@ -438,7 +485,6 @@ function OverlayPreview({ state, logoA, logoB }) {
             <span style={{ fontFamily: O, fontSize: 16, fontWeight: 700, color: "#FFD700" }}>{getQL(quarter)}</span>
           </div>
 
-          {/* Shot Clock - ล็อคความกว้างตัวเลข */}
           <div style={{ width: 65, textAlign: "center" }}>
             <div style={{ fontFamily: BC, fontSize: 9, color: shotUrgent ? "#FF3333" : "rgba(255,255,255,0.3)", marginBottom: -2 }}>SHOT</div>
             <div style={{ 
