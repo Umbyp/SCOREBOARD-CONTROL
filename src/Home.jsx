@@ -1,244 +1,150 @@
-// Home.jsx — หน้าหลัก Navigation Hub
-export default function Home({ onNavigate }) {
-  const S = (style) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...style });
+// Home.jsx — navigation hub, "Broadcast Console" design system
+import { c, font, r, overline, shadow, FONT_IMPORT } from "./theme";
 
+// ── Minimal line icons (no emoji) ─────────────────────────────
+const Icon = ({ name, size = 22, color = "currentColor" }) => {
+  const common = {
+    width: size, height: size, viewBox: "0 0 24 24", fill: "none",
+    stroke: color, strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round",
+  };
+  switch (name) {
+    case "control": // sliders
+      return (<svg {...common}><line x1="4" y1="8" x2="20" y2="8"/><circle cx="9" cy="8" r="2.4" fill={c.surface}/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="15" cy="16" r="2.4" fill={c.surface}/></svg>);
+    case "display": // monitor
+      return (<svg {...common}><rect x="3" y="4" width="18" height="12" rx="1.5"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="16" x2="12" y2="20"/></svg>);
+    case "players": // users
+      return (<svg {...common}><circle cx="9" cy="8" r="3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><path d="M16 5.5a3 3 0 0 1 0 5.6"/><path d="M17.5 19a5.5 5.5 0 0 0-3-4.9"/></svg>);
+    case "overlay": // broadcast
+      return (<svg {...common}><circle cx="12" cy="12" r="2.2"/><path d="M7.5 7.5a6 6 0 0 0 0 9M16.5 7.5a6 6 0 0 1 0 9"/><path d="M4.8 4.8a10 10 0 0 0 0 14.4M19.2 4.8a10 10 0 0 1 0 14.4"/></svg>);
+    default: return null;
+  }
+};
+
+const Ball = ({ size = 30 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={c.text} strokeWidth="1.4">
+    <circle cx="12" cy="12" r="9.2" />
+    <path d="M12 2.8v18.4M2.8 12h18.4M5.2 5.2c3.4 2.4 3.4 11.2 0 13.6M18.8 5.2c-3.4 2.4-3.4 11.2 0 13.6" strokeOpacity="0.55" />
+  </svg>
+);
+
+export default function Home({ onNavigate }) {
   const cards = [
-    {
-      id: "control",
-      icon: "🎮",
-      title: "SCOREBOARD CONTROL",
-      subtitle: "จัดการคะแนน · นาฬิกา · ฟาวล์ · Timeout",
-      desc: "แผงควบคุมหลักสำหรับ Operator ใช้งานระหว่างแข่งขัน",
-      color: "#FF6B35",
-      accent: "rgba(255,107,53,0.15)",
-      border: "rgba(255,107,53,0.35)",
-      hint: "OPERATOR PANEL",
-    },
-    {
-      id: "display",
-      icon: "📺",
-      title: "ARENA DISPLAY",
-      subtitle: "จอใหญ่แสดงคะแนนในสนาม",
-      desc: "หน้าจอ Full Screen สำหรับโปรเจคเตอร์หรือ TV ในสนามแข่งขัน",
-      color: "#00D4FF",
-      accent: "rgba(0,212,255,0.12)",
-      border: "rgba(0,212,255,0.3)",
-      hint: "ARENA SCREEN",
-    },
-    {
-      id: "players",
-      icon: "👥",
-      title: "PLAYER MANAGER",
-      subtitle: "จัดการรายชื่อผู้เล่น + ฟาวล์แต่ละคน",
-      desc: "เพิ่ม/ลบผู้เล่นได้ไม่จำกัด บันทึกข้อมูลขึ้น Firebase Realtime Database ทันที",
-      color: "#00E87A",
-      accent: "rgba(0,232,122,0.1)",
-      border: "rgba(0,232,122,0.28)",
-      hint: "FIREBASE SYNC",
-    },
-    {
-      id: "overlay",
-      icon: "🎬",
-      title: "OBS OVERLAY",
-      subtitle: "Browser Source สำหรับ OBS Studio",
-      desc: "Score Bug แบบ Transparent สำหรับ Live Stream บน OBS",
-      color: "#FFD700",
-      accent: "rgba(255,215,0,0.1)",
-      border: "rgba(255,215,0,0.3)",
-      hint: "OBS · 1920×1080",
-    },
+    { id: "control", index: "01", icon: "control", title: "SCOREBOARD CONTROL",
+      desc: "แผงควบคุมหลักของ Operator — คะแนน นาฬิกา ฟาวล์ และ Timeout",
+      hint: "OPERATOR", accent: c.gold },
+    { id: "display", index: "02", icon: "display", title: "ARENA DISPLAY",
+      desc: "จอเต็มสำหรับโปรเจกเตอร์หรือทีวีในสนามแข่งขัน",
+      hint: "ARENA", accent: "#2FA8DC" },
+    { id: "players", index: "03", icon: "players", title: "PLAYER MANAGER",
+      desc: "จัดการรายชื่อและฟาวล์รายบุคคล ซิงก์กับ Firebase ทันที",
+      hint: "ROSTER", accent: c.live },
+    { id: "overlay", index: "04", icon: "overlay", title: "OBS OVERLAY",
+      desc: "Score bug แบบโปร่งใสสำหรับ Live Stream · 1920×1080",
+      hint: "BROWSER SOURCE", accent: "#E86A3A" },
   ];
 
   return (
     <div style={{
-      minHeight: "100vh",
-      background: "radial-gradient(ellipse at 20% 0%, #1a0f2e 0%, #08080f 50%, #0a0d14 100%)",
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center",
-      padding: "40px 20px",
-      fontFamily: "system-ui, sans-serif",
-      position: "relative",
-      overflow: "hidden",
+      minHeight: "100vh", background: c.bg, color: c.text,
+      display: "flex", flexDirection: "column", alignItems: "center",
+      padding: "clamp(32px,7vh,80px) 24px",
+      fontFamily: font.body, position: "relative", overflow: "hidden",
     }}>
+      <style>{`
+        ${FONT_IMPORT}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        @keyframes hb-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+        .hb-card{transition:transform .18s ease, border-color .18s ease, background .18s ease;}
+        .hb-card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,0.16);background:${c.surface2};}
+        .hb-card:hover .hb-arrow{transform:translateX(4px);}
+        .hb-arrow{transition:transform .18s ease;}
+      `}</style>
 
-      {/* Background decoration */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-        backgroundImage: `
-          radial-gradient(circle at 15% 20%, rgba(255,107,53,0.06) 0%, transparent 50%),
-          radial-gradient(circle at 85% 80%, rgba(0,212,255,0.06) 0%, transparent 50%),
-          radial-gradient(circle at 50% 50%, rgba(255,215,0,0.03) 0%, transparent 60%)
-        `,
-        pointerEvents: "none",
-      }} />
+      {/* faint top vignette — atmosphere, not neon */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none",
+        background: "radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,0.035), transparent 60%)" }} />
 
-      {/* Grid lines */}
-      <div style={{
-        position: "absolute", inset: 0, opacity: 0.03,
-        backgroundImage: "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-        backgroundSize: "60px 60px",
-        pointerEvents: "none",
-      }} />
-
-      {/* Logo / Title */}
-      <div style={{ textAlign: "center", marginBottom: 52, position: "relative" }}>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 14,
-          marginBottom: 16,
-        }}>
-          <div style={{ fontSize: 48, lineHeight: 1 }}>🏀</div>
+      {/* Masthead */}
+      <header style={{ width: "100%", maxWidth: 1080, marginBottom: "clamp(32px,6vh,64px)",
+        display: "flex", alignItems: "flex-end", justifyContent: "space-between",
+        gap: 16, flexWrap: "wrap", position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 52, height: 52, borderRadius: r.md, background: c.surface,
+            border: `1px solid ${c.lineStrong}`, display: "flex", alignItems: "center",
+            justifyContent: "center", flexShrink: 0 }}>
+            <Ball size={28} />
+          </div>
           <div>
-            <div style={{
-              ...S({ fontSize: 52, letterSpacing: "0.2em", lineHeight: 0.9 }),
-              background: "linear-gradient(135deg, #FF6B35 0%, #FFD700 45%, #00D4FF 100%)",
-              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            }}>
-              BASKETBALL
+            <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: "clamp(26px,4vw,40px)",
+              letterSpacing: "0.06em", lineHeight: 0.95 }}>
+              BASKETBALL <span style={{ color: c.dim, fontWeight: 300 }}>SCOREBOARD</span>
             </div>
-            <div style={{
-              ...S({ fontSize: 22, letterSpacing: "0.6em", lineHeight: 1 }),
-              color: "rgba(255,255,255,0.35)",
-            }}>
-              SCOREBOARD SYSTEM
+            <div style={{ ...overline({ marginTop: 6, color: c.mute, letterSpacing: "0.42em" }) }}>
+              LIVE BROADCAST SYSTEM
             </div>
           </div>
         </div>
 
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "5px 16px", borderRadius: 100,
-          background: "rgba(0,232,122,0.07)",
-          border: "1px solid rgba(0,232,122,0.2)",
-        }}>
-          <div style={{
-            width: 6, height: 6, borderRadius: "50%", background: "#00E87A",
-            boxShadow: "0 0 8px #00E87A",
-            animation: "pulse 2s ease-in-out infinite",
-          }} />
-          <span style={{ ...S({ fontSize: 11, letterSpacing: "0.3em" }), color: "#00E87A" }}>
-            LIVE BROADCAST READY
-          </span>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 9,
+          padding: "7px 14px", borderRadius: r.pill, background: c.surface,
+          border: `1px solid ${c.line}` }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: c.live,
+            animation: "hb-pulse 2.4s ease-in-out infinite" }} />
+          <span style={{ ...overline({ color: c.live, letterSpacing: "0.24em" }) }}>READY</span>
         </div>
-      </div>
+      </header>
 
       {/* Cards */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 260px)",
-        gap: 14,
-        maxWidth: 1100,
-        width: "100%",
-      }}>
+      <main style={{ width: "100%", maxWidth: 1080, display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
         {cards.map((card) => (
-          <button
-            key={card.id}
-            onClick={() => onNavigate(card.id)}
-            style={{
-              background: `linear-gradient(160deg, ${card.accent}, rgba(0,0,0,0.4))`,
-              border: `1px solid ${card.border}`,
-              borderRadius: 20,
-              padding: "32px 28px",
-              cursor: "pointer",
-              textAlign: "left",
-              transition: "all 0.2s cubic-bezier(0.34, 1.3, 0.64, 1)",
-              position: "relative",
-              overflow: "hidden",
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.transform = "translateY(-6px) scale(1.01)";
-              e.currentTarget.style.boxShadow = `0 20px 50px ${card.color}22, 0 0 0 1px ${card.color}44`;
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = "translateY(0) scale(1)";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-          >
-            {/* Top glow line */}
-            <div style={{
-              position: "absolute", top: 0, left: 0, right: 0, height: 2,
-              background: `linear-gradient(90deg, transparent, ${card.color}, transparent)`,
-            }} />
-
-            {/* Hint badge */}
-            <div style={{
-              position: "absolute", top: 16, right: 16,
-              ...S({ fontSize: 9, letterSpacing: "0.3em" }),
-              color: card.color,
-              background: `${card.color}15`,
-              border: `1px solid ${card.color}30`,
-              padding: "3px 8px", borderRadius: 100,
-              opacity: 0.7,
-            }}>
-              {card.hint}
+          <button key={card.id} onClick={() => onNavigate(card.id)} className="hb-card"
+            style={{ textAlign: "left", cursor: "pointer", background: c.surface,
+              border: `1px solid ${c.line}`, borderRadius: r.xl, padding: 24,
+              display: "flex", flexDirection: "column", gap: 0, minHeight: 220,
+              position: "relative", boxShadow: shadow.sm, color: c.text }}>
+            {/* top row: index + hint */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: 22 }}>
+              <span style={{ fontFamily: font.num, fontSize: 15, fontWeight: 500,
+                color: card.accent, letterSpacing: "0.1em" }}>{card.index}</span>
+              <span style={{ ...overline({ fontSize: 9, color: c.faint }) }}>{card.hint}</span>
             </div>
 
-            {/* Icon */}
-            <div style={{ fontSize: 40, marginBottom: 16, lineHeight: 1 }}>
-              {card.icon}
+            {/* icon */}
+            <div style={{ width: 44, height: 44, borderRadius: r.md, background: c.surface2,
+              border: `1px solid ${c.line}`, display: "flex", alignItems: "center",
+              justifyContent: "center", color: card.accent, marginBottom: 18 }}>
+              <Icon name={card.icon} size={22} color={card.accent} />
             </div>
 
-            {/* Title */}
-            <div style={{
-              ...S({ fontSize: 26, letterSpacing: "0.12em", lineHeight: 1 }),
-              color: card.color,
-              marginBottom: 6,
-            }}>
+            {/* title */}
+            <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 21,
+              letterSpacing: "0.02em", lineHeight: 1.05, marginBottom: 8 }}>
               {card.title}
             </div>
 
-            {/* Subtitle */}
-            <div style={{
-              ...S({ fontSize: 13, letterSpacing: "0.08em" }),
-              color: "rgba(255,255,255,0.5)",
-              marginBottom: 14,
-            }}>
-              {card.subtitle}
-            </div>
+            {/* desc */}
+            <div style={{ fontFamily: font.body, fontSize: 14, lineHeight: 1.5,
+              color: c.dim, marginBottom: "auto" }}>{card.desc}</div>
 
-            {/* Divider */}
-            <div style={{
-              height: 1,
-              background: `linear-gradient(90deg, ${card.color}30, transparent)`,
-              marginBottom: 14,
-            }} />
-
-            {/* Description */}
-            <div style={{
-              fontSize: 12,
-              color: "rgba(255,255,255,0.3)",
-              lineHeight: 1.6,
-              fontFamily: "system-ui",
-            }}>
-              {card.desc}
-            </div>
-
-            {/* Arrow */}
-            <div style={{
-              marginTop: 20,
-              display: "flex", alignItems: "center", gap: 6,
-              ...S({ fontSize: 12, letterSpacing: "0.2em" }),
-              color: card.color, opacity: 0.7,
-            }}>
-              เปิดหน้านี้ <span style={{ fontSize: 16 }}>→</span>
+            {/* footer */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 20,
+              ...overline({ fontSize: 10, color: c.mute, letterSpacing: "0.2em" }) }}>
+              เปิด
+              <span className="hb-arrow" style={{ color: card.accent, fontSize: 15,
+                display: "inline-block", lineHeight: 1 }}>→</span>
             </div>
           </button>
         ))}
-      </div>
+      </main>
 
       {/* Footer */}
-      <div style={{
-        marginTop: 48,
-        ...S({ fontSize: 10, letterSpacing: "0.4em" }),
-        color: "rgba(255,255,255,0.1)",
-        textAlign: "center",
-      }}>
-        สนามบาส · THAILAND OPEN 2026 · POWERED BY SOCKET.IO
-      </div>
-
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-      `}</style>
+      <footer style={{ marginTop: "auto", paddingTop: 48, textAlign: "center",
+        ...overline({ fontSize: 9.5, color: c.faint, letterSpacing: "0.32em" }) }}>
+        THAILAND OPEN 2026 · REALTIME VIA SOCKET.IO
+      </footer>
     </div>
   );
 }

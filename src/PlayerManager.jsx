@@ -1,7 +1,8 @@
-// PlayerManager.jsx — จัดการผู้เล่น · UX redesign · Firebase sync
+// PlayerManager.jsx — roster & fouls · "Broadcast Console" design system
 import { useState, useEffect, useCallback, useRef } from "react";
 import { db } from "./firebase";
 import { ref, onValue, set } from "firebase/database";
+import { c, font, r, shadow, overline, panel, btn, FONT_IMPORT } from "./theme";
 
 const DB_PATH     = "player_data";
 const LOGO_KEY_A  = "overlay_logo_a";
@@ -9,8 +10,8 @@ const LOGO_KEY_B  = "overlay_logo_b";
 const MAX_PLAYERS = 16;
 
 const TEAM_DEFAULTS = {
-  teamA: { name: "HOME", color: "#FF6B35", logo: "" },
-  teamB: { name: "AWAY", color: "#00D4FF", logo: "" },
+  teamA: { name: "HOME", color: "#E86A3A", logo: "" },
+  teamB: { name: "AWAY", color: "#2FA8DC", logo: "" },
 };
 
 const newPlayer = (n) => ({ num: "", name: n ? `PLAYER ${n}` : "", fouls: 0 });
@@ -21,58 +22,33 @@ const defaultTeamData = (key) => ({
 });
 
 // ─── Helpers ──────────────────────────────────────────────────
-const foulColor = (f) =>
-  f >= 5 ? "#FF3333" : f >= 4 ? "#FF8C00" : f >= 3 ? "#FFD700" : null;
+const foulColor = (f) => f >= 5 ? c.danger : f >= 4 ? c.warn : f >= 3 ? c.gold : null;
+const foulLabel = (f) => f >= 5 ? "FOUL OUT" : f >= 4 ? "4th" : f >= 3 ? "3rd" : null;
 
-const foulLabel = (f) =>
-  f >= 5 ? "FOUL OUT" : f >= 4 ? "4th" : f >= 3 ? "3rd" : null;
-
-// ─── Inline Foul Counter (big touch-friendly) ─────────────────
+// ─── Inline Foul Counter ──────────────────────────────────────
 function FoulCounter({ value, color, onChange }) {
-  const fc = foulColor(value) || "rgba(255,255,255,0.55)";
+  const fc = foulColor(value) || c.dim;
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 0,
-      background: "rgba(0,0,0,0.25)", borderRadius: 8,
-      border: `1px solid ${value >= 3 ? fc + "55" : "rgba(255,255,255,0.08)"}`,
-      overflow: "hidden", transition: "border-color 0.2s",
-    }}>
-      <button
-        onClick={() => onChange(Math.max(0, value - 1))}
-        disabled={value <= 0}
-        style={{
-          width: 36, height: 36, border: "none",
-          background: value > 0 ? "rgba(255,60,60,0.1)" : "transparent",
-          color: value > 0 ? "#FF8080" : "rgba(255,255,255,0.12)",
-          fontSize: 20, cursor: value > 0 ? "pointer" : "default",
-          fontFamily: "system-ui", fontWeight: 300,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all 0.15s", flexShrink: 0,
-        }}
-      >−</button>
+    <div style={{ display: "flex", alignItems: "center",
+      background: c.bgInset, borderRadius: r.sm,
+      border: `1px solid ${value >= 3 ? fc + "55" : c.line}`,
+      overflow: "hidden", transition: "border-color .2s" }}>
+      <button onClick={() => onChange(Math.max(0, value - 1))} disabled={value <= 0} style={{
+        width: 34, height: 34, border: "none",
+        background: value > 0 ? c.dangerDim : "transparent",
+        color: value > 0 ? c.danger : c.faint,
+        fontSize: 19, cursor: value > 0 ? "pointer" : "default", fontFamily: font.body,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>−</button>
 
-      <div style={{
-        width: 36, textAlign: "center",
-        fontFamily: "'Oswald', sans-serif",
-        fontSize: 20, fontWeight: 700,
-        color: fc,
-        transition: "color 0.2s",
-        lineHeight: 1,
-      }}>{value}</div>
+      <div style={{ width: 34, textAlign: "center", fontFamily: font.num, fontSize: 19,
+        fontWeight: 700, color: fc, transition: "color .2s", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{value}</div>
 
-      <button
-        onClick={() => onChange(Math.min(5, value + 1))}
-        disabled={value >= 5}
-        style={{
-          width: 36, height: 36, border: "none",
-          background: value < 5 ? `${color}18` : "transparent",
-          color: value < 5 ? color : "rgba(255,255,255,0.12)",
-          fontSize: 20, cursor: value < 5 ? "pointer" : "default",
-          fontFamily: "system-ui", fontWeight: 300,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          transition: "all 0.15s", flexShrink: 0,
-        }}
-      >+</button>
+      <button onClick={() => onChange(Math.min(5, value + 1))} disabled={value >= 5} style={{
+        width: 34, height: 34, border: "none",
+        background: value < 5 ? color + "1A" : "transparent",
+        color: value < 5 ? color : c.faint,
+        fontSize: 19, cursor: value < 5 ? "pointer" : "default", fontFamily: font.body,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>+</button>
     </div>
   );
 }
@@ -83,13 +59,9 @@ function FoulPips({ count, color }) {
   return (
     <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
       {[1,2,3,4,5].map(i => (
-        <div key={i} style={{
-          width: 8, height: 8, borderRadius: "50%",
-          background: i <= count ? fc : "rgba(255,255,255,0.08)",
-          border: `1.5px solid ${i <= count ? fc : "rgba(255,255,255,0.1)"}`,
-          boxShadow: i <= count && count >= 3 ? `0 0 5px ${fc}88` : "none",
-          transition: "all 0.2s", flexShrink: 0,
-        }} />
+        <div key={i} style={{ width: 8, height: 8, borderRadius: "50%",
+          background: i <= count ? fc : "rgba(255,255,255,0.06)",
+          border: `1px solid ${i <= count ? fc : c.line}`, transition: "all .2s", flexShrink: 0 }} />
       ))}
     </div>
   );
@@ -101,121 +73,38 @@ function LogoInput({ value, color, onChange }) {
   const [inputVal, setInputVal] = useState(value || "");
   const hasLogo = !!value;
 
-  const apply = () => {
-    onChange(inputVal.trim());
-    setExpanded(false);
-  };
-  const clear = () => {
-    setInputVal("");
-    onChange("");
-    setExpanded(false);
-  };
+  const apply = () => { onChange(inputVal.trim()); setExpanded(false); };
+  const clear = () => { setInputVal(""); onChange(""); setExpanded(false); };
 
   return (
     <div style={{ position: "relative" }}>
-      <button
-        onClick={() => setExpanded(e => !e)}
-        title={hasLogo ? "เปลี่ยน logo" : "เพิ่ม logo"}
-        style={{
-          width: 44, height: 44,
-          borderRadius: 8,
-          background: hasLogo ? "transparent" : `${color}10`,
-          border: `1.5px solid ${hasLogo ? color + "60" : color + "30"}`,
-          cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          overflow: "hidden",
-          transition: "all 0.2s",
-          flexShrink: 0,
-          position: "relative",
-        }}
-      >
-        {hasLogo ? (
-          <img src={value} alt="logo"
-            style={{ width: 38, height: 38, objectFit: "contain", borderRadius: 4 }}
-            onError={(e) => { e.target.style.display = "none"; }}
-          />
-        ) : (
-          <div style={{ fontSize: 18, opacity: 0.5 }}>🖼️</div>
-        )}
-        {/* Edit overlay on hover */}
-        <div style={{
-          position: "absolute", inset: 0,
-          background: "rgba(0,0,0,0.6)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          opacity: 0, transition: "opacity 0.15s",
-          fontSize: 11,
-          fontFamily: "'Barlow Condensed'", fontWeight: 800,
-          color: "#fff", letterSpacing: "0.1em",
-        }}
-          onMouseEnter={e => e.currentTarget.style.opacity = 1}
-          onMouseLeave={e => e.currentTarget.style.opacity = 0}
-        >{hasLogo ? "EDIT" : "ADD"}</div>
+      <button onClick={() => setExpanded(e => !e)} title={hasLogo ? "เปลี่ยนโลโก้" : "เพิ่มโลโก้"} style={{
+        width: 44, height: 44, borderRadius: r.md,
+        background: hasLogo ? c.surface2 : color + "12",
+        border: `1px solid ${hasLogo ? color + "55" : c.line}`,
+        cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+        overflow: "hidden", flexShrink: 0, transition: "border-color .2s" }}>
+        {hasLogo
+          ? <img src={value} alt="logo" style={{ width: 38, height: 38, objectFit: "contain" }} onError={(e) => { e.target.style.display = "none"; }} />
+          : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={c.mute} strokeWidth="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.6"/><path d="M4 17l5-4 4 3 3-2 4 3"/></svg>}
       </button>
 
       {expanded && (
-        <div style={{
-          position: "absolute",
-          top: 52, left: 0, zIndex: 200,
-          background: "#0d0d1e",
-          border: `1px solid ${color}40`,
-          borderRadius: 10,
-          padding: 12, width: 280,
-          boxShadow: "0 12px 32px rgba(0,0,0,0.7)",
-        }}>
-          <div style={{
-            fontFamily: "'Barlow Condensed'", fontSize: 10, fontWeight: 800,
-            color: "rgba(255,255,255,0.3)", letterSpacing: "0.3em",
-            marginBottom: 8,
-          }}>URL รูปภาพ Logo</div>
-          <input
-            autoFocus
-            value={inputVal}
-            onChange={e => setInputVal(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && apply()}
-            placeholder="https://..."
-            style={{
-              width: "100%", background: "rgba(255,255,255,0.06)",
-              border: `1px solid ${color}40`,
-              borderRadius: 6, color: "#fff",
-              fontFamily: "system-ui", fontSize: 12,
-              padding: "8px 10px", outline: "none",
-              marginBottom: 8,
-            }}
-          />
-          {/* Preview */}
+        <div style={{ position: "absolute", top: 52, left: 0, zIndex: 200, background: c.surface,
+          border: `1px solid ${c.lineStrong}`, borderRadius: r.md, padding: 12, width: 288, boxShadow: shadow.lg }}>
+          <div style={{ ...overline({ marginBottom: 8 }) }}>URL รูปภาพโลโก้</div>
+          <input autoFocus value={inputVal} onChange={e => setInputVal(e.target.value)} onKeyDown={e => e.key === "Enter" && apply()} placeholder="https://…" style={{
+            width: "100%", background: c.surface2, border: `1px solid ${c.line}`, borderRadius: r.sm,
+            color: c.text, fontFamily: font.body, fontSize: 13, padding: "9px 11px", outline: "none", marginBottom: 10 }} />
           {inputVal && (
-            <div style={{
-              display: "flex", justifyContent: "center",
-              marginBottom: 8, padding: 6,
-              background: "rgba(0,0,0,0.3)", borderRadius: 6,
-            }}>
-              <img src={inputVal} alt="preview"
-                style={{ height: 40, objectFit: "contain" }}
-                onError={e => e.target.src = ""}
-              />
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 10, padding: 8, background: c.bgInset, borderRadius: r.sm }}>
+              <img src={inputVal} alt="preview" style={{ height: 42, objectFit: "contain" }} onError={e => e.target.src = ""} />
             </div>
           )}
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={apply} style={{
-              flex: 1, padding: "8px 0",
-              background: `${color}20`, border: `1px solid ${color}40`,
-              borderRadius: 6, color, cursor: "pointer",
-              fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: "0.15em",
-            }}>ตั้งค่า</button>
-            {hasLogo && (
-              <button onClick={clear} style={{
-                padding: "8px 12px",
-                background: "rgba(255,50,50,0.08)", border: "1px solid rgba(255,50,50,0.2)",
-                borderRadius: 6, color: "#FF8080", cursor: "pointer",
-                fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: "0.15em",
-              }}>ลบ</button>
-            )}
-            <button onClick={() => setExpanded(false)} style={{
-              padding: "8px 12px",
-              background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 6, color: "rgba(255,255,255,0.3)", cursor: "pointer",
-              fontFamily: "'Bebas Neue'", fontSize: 13, letterSpacing: "0.15em",
-            }}>ยกเลิก</button>
+            <button onClick={apply} style={{ ...btn(color, { active: true }), flex: 1, padding: "9px 0", fontSize: 13 }}>ตั้งค่า</button>
+            {hasLogo && <button onClick={clear} style={{ ...btn("danger"), padding: "9px 13px", fontSize: 13 }}>ลบ</button>}
+            <button onClick={() => setExpanded(false)} style={{ ...btn("neutral"), padding: "9px 13px", fontSize: 13, color: c.mute }}>ยกเลิก</button>
           </div>
         </div>
       )}
@@ -230,101 +119,42 @@ function PlayerRow({ player, index, color, onChange, onRemove, canRemove }) {
   const fl   = foulLabel(player.fouls);
 
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "40px 1fr 110px 12px",
-      alignItems: "center",
-      gap: 8, padding: "8px 14px",
-      borderBottom: "1px solid rgba(255,255,255,0.04)",
-      background: isDQ
-        ? "linear-gradient(90deg, rgba(255,30,30,0.07), transparent)"
-        : index % 2 === 0 ? "rgba(255,255,255,0.015)" : "transparent",
-      transition: "background 0.3s",
-      position: "relative",
-    }}>
+    <div style={{ display: "grid", gridTemplateColumns: "40px 1fr 108px 16px", alignItems: "center",
+      gap: 8, padding: "9px 14px", borderBottom: `1px solid ${c.lineSoft}`,
+      background: isDQ ? "rgba(222,91,87,0.07)" : index % 2 === 0 ? "rgba(255,255,255,0.012)" : "transparent",
+      transition: "background .3s" }}>
 
-      {/* Jersey # */}
-      <input
-        value={player.num}
-        maxLength={3}
-        onChange={e => onChange({ ...player, num: e.target.value })}
-        placeholder="#"
-        style={{
-          background: "transparent",
-          border: "none",
-          borderBottom: `1.5px solid ${color}30`,
-          outline: "none", color,
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: 20, fontWeight: 700,
-          textAlign: "center", width: "100%",
-          padding: "2px 0",
-          transition: "border-color 0.15s",
-        }}
+      <input value={player.num} maxLength={3} onChange={e => onChange({ ...player, num: e.target.value })} placeholder="#" style={{
+        background: "transparent", border: "none", borderBottom: `1.5px solid ${color}35`, outline: "none",
+        color, fontFamily: font.num, fontSize: 19, fontWeight: 700, textAlign: "center", width: "100%",
+        padding: "2px 0", fontVariantNumeric: "tabular-nums" }}
         onFocus={e => e.target.style.borderBottomColor = color}
-        onBlur={e => e.target.style.borderBottomColor = `${color}30`}
-      />
+        onBlur={e => e.target.style.borderBottomColor = `${color}35`} />
 
-      {/* Name + status */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-        <input
-          value={player.name}
-          maxLength={20}
-          onChange={e => onChange({ ...player, name: e.target.value.toUpperCase() })}
-          placeholder={`PLAYER ${index + 1}`}
-          style={{
-            background: "transparent", border: "none",
-            borderBottom: `1.5px solid rgba(255,255,255,0.08)`,
-            outline: "none",
-            color: isDQ ? "rgba(255,100,100,0.7)" : "rgba(255,255,255,0.9)",
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 15, fontWeight: 600,
-            letterSpacing: "0.02em",
-            width: "100%", padding: "2px 0",
-            textDecoration: isDQ ? "line-through" : "none",
-            transition: "all 0.15s",
-          }}
-          onFocus={e => e.target.style.borderBottomColor = "rgba(255,255,255,0.25)"}
-          onBlur={e => e.target.style.borderBottomColor = "rgba(255,255,255,0.08)"}
-        />
-        {/* Pip dots under name */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+        <input value={player.name} maxLength={20} onChange={e => onChange({ ...player, name: e.target.value.toUpperCase() })} placeholder={`PLAYER ${index + 1}`} style={{
+          background: "transparent", border: "none", borderBottom: `1.5px solid ${c.line}`, outline: "none",
+          color: isDQ ? "rgba(222,91,87,0.75)" : c.text, fontFamily: font.body, fontSize: 15, fontWeight: 600,
+          letterSpacing: "0.01em", width: "100%", padding: "2px 0",
+          textDecoration: isDQ ? "line-through" : "none", transition: "border-color .15s" }}
+          onFocus={e => e.target.style.borderBottomColor = c.lineStrong}
+          onBlur={e => e.target.style.borderBottomColor = c.line} />
         <FoulPips count={player.fouls} color={color} />
       </div>
 
-      {/* Foul counter */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-        <FoulCounter
-          value={player.fouls}
-          color={color}
-          onChange={v => onChange({ ...player, fouls: v })}
-        />
-        {fl && (
-          <span style={{
-            fontFamily: "'Barlow Condensed'", fontSize: 9, fontWeight: 800,
-            color: fc, letterSpacing: "0.15em",
-            background: `${fc}15`, border: `1px solid ${fc}30`,
-            padding: "1px 5px", borderRadius: 3,
-          }}>{fl}</span>
-        )}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+        <FoulCounter value={player.fouls} color={color} onChange={v => onChange({ ...player, fouls: v })} />
+        {fl && <span style={{ ...overline({ fontSize: 9, color: fc, letterSpacing: "0.12em" }),
+          background: `${fc}18`, border: `1px solid ${fc}3A`, padding: "1px 6px", borderRadius: 3 }}>{fl}</span>}
       </div>
 
-      {/* Remove */}
-      <button
-        onClick={onRemove}
-        disabled={!canRemove}
-        title="ลบผู้เล่น"
-        style={{
-          width: 20, height: 20, border: "none",
-          background: "none", color: "rgba(255,80,80,0.25)",
-          cursor: canRemove ? "pointer" : "default",
-          fontSize: 14, padding: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          opacity: canRemove ? 1 : 0.2,
-          transition: "color 0.15s",
-          flexShrink: 0,
-        }}
-        onMouseEnter={e => canRemove && (e.target.style.color = "#FF5555")}
-        onMouseLeave={e => e.target.style.color = "rgba(255,80,80,0.25)"}
-      >✕</button>
+      <button onClick={onRemove} disabled={!canRemove} title="ลบผู้เล่น" style={{
+        width: 20, height: 20, border: "none", background: "none", color: "rgba(222,91,87,0.3)",
+        cursor: canRemove ? "pointer" : "default", fontSize: 15, padding: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        opacity: canRemove ? 1 : 0.2, transition: "color .15s", flexShrink: 0 }}
+        onMouseEnter={e => canRemove && (e.currentTarget.style.color = c.danger)}
+        onMouseLeave={e => e.currentTarget.style.color = "rgba(222,91,87,0.3)"}>✕</button>
     </div>
   );
 }
@@ -334,206 +164,86 @@ function TeamPanel({ teamKey, data, saveStatus, onUpdate }) {
   const color   = data.color || TEAM_DEFAULTS[teamKey].color;
   const players = data.players || [];
 
-  const updatePlayer = (idx, newP) => {
-    const next = players.map((p, i) => i === idx ? newP : p);
-    onUpdate(teamKey, { ...data, players: next });
-  };
+  const updatePlayer = (idx, newP) => onUpdate(teamKey, { ...data, players: players.map((p, i) => i === idx ? newP : p) });
+  const addPlayer = () => { if (players.length >= MAX_PLAYERS) return; onUpdate(teamKey, { ...data, players: [...players, newPlayer(players.length + 1)] }); };
+  const removePlayer = (idx) => { if (players.length <= 1) return; onUpdate(teamKey, { ...data, players: players.filter((_, i) => i !== idx) }); };
+  const resetFouls = () => { if (!confirm(`Reset ฟาวล์ผู้เล่นทั้งหมดในทีม ${data.name}?`)) return; onUpdate(teamKey, { ...data, players: players.map(p => ({ ...p, fouls: 0 })) }); };
 
-  const addPlayer = () => {
-    if (players.length >= MAX_PLAYERS) return;
-    onUpdate(teamKey, {
-      ...data,
-      players: [...players, newPlayer(players.length + 1)],
-    });
-  };
-
-  const removePlayer = (idx) => {
-    if (players.length <= 1) return;
-    onUpdate(teamKey, {
-      ...data,
-      players: players.filter((_, i) => i !== idx),
-    });
-  };
-
-  const resetFouls = () => {
-    if (!confirm(`Reset ฟาวล์ผู้เล่นทั้งหมดในทีม ${data.name}?`)) return;
-    onUpdate(teamKey, {
-      ...data,
-      players: players.map(p => ({ ...p, fouls: 0 })),
-    });
-  };
-
-  // Stats
   const totalFouls  = players.reduce((s, p) => s + (p.fouls || 0), 0);
   const fouledOut   = players.filter(p => (p.fouls || 0) >= 5).length;
   const atRisk      = players.filter(p => (p.fouls || 0) >= 3 && (p.fouls || 0) < 5).length;
 
-  const S = (s) => ({ fontFamily: "'Bebas Neue', sans-serif", ...s });
-  const statusDot = { saving: "#888", saved: "#00E87A", error: "#FF5555" };
-  const statusTxt = { saving: "กำลังบันทึก…", saved: "บันทึกแล้ว", error: "Error" };
+  const statusColor = { saving: c.mute, saved: c.live, error: c.danger };
+  const statusTxt   = { saving: "กำลังบันทึก…", saved: "บันทึกแล้ว", error: "Error" };
 
   return (
-    <div style={{
-      display: "flex", flexDirection: "column",
-      background: "linear-gradient(180deg, #0a0a1a 0%, #07070e 100%)",
-      border: `1px solid ${color}22`,
-      borderRadius: 16, overflow: "hidden",
-      height: "100%",
-    }}>
+    <div style={panel({ display: "flex", flexDirection: "column", overflow: "hidden", height: "100%", boxShadow: shadow.sm })}>
+      <div style={{ height: 3, background: color }} />
 
-      {/* ── HEADER ─────────────────────────────────────────── */}
-      <div style={{
-        padding: "16px 16px 12px",
-        background: `linear-gradient(135deg, ${color}14 0%, rgba(0,0,0,0.3) 100%)`,
-        borderBottom: `1px solid ${color}20`,
-      }}>
-        {/* Top row: Logo + Name + Status */}
+      {/* HEADER */}
+      <div style={{ padding: "14px 16px 12px", borderBottom: `1px solid ${c.line}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <LogoInput
-            value={data.logo || ""}
-            color={color}
-            onChange={logoUrl => onUpdate(teamKey, { ...data, logo: logoUrl })}
-          />
+          <LogoInput value={data.logo || ""} color={color} onChange={logoUrl => onUpdate(teamKey, { ...data, logo: logoUrl })} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <input
-              value={data.name}
-              maxLength={24}
-              onChange={e => onUpdate(teamKey, { ...data, name: e.target.value.toUpperCase() })}
-              style={{
-                background: "transparent", border: "none",
-                borderBottom: `2px solid ${color}40`,
-                outline: "none", color,
-                ...S({ fontSize: 26, letterSpacing: "0.12em" }),
-                width: "100%", padding: "2px 0",
-              }}
-              placeholder="TEAM NAME"
-            />
-            <div style={{
-              fontFamily: "'Barlow Condensed'", fontSize: 9, fontWeight: 800,
-              color: "rgba(255,255,255,0.2)", letterSpacing: "0.4em", marginTop: 3,
-            }}>
+            <input value={data.name} maxLength={24} onChange={e => onUpdate(teamKey, { ...data, name: e.target.value.toUpperCase() })} placeholder="TEAM NAME" style={{
+              background: "transparent", border: "none", borderBottom: `2px solid ${color}45`, outline: "none",
+              color, fontFamily: font.head, fontWeight: 600, fontSize: 24, letterSpacing: "0.03em", width: "100%", padding: "2px 0" }} />
+            <div style={{ ...overline({ fontSize: 9, marginTop: 4, letterSpacing: "0.32em" }) }}>
               {teamKey === "teamA" ? "HOME TEAM" : "AWAY TEAM"}
             </div>
           </div>
-          {/* Save status */}
           {saveStatus && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 5,
-              fontFamily: "'Barlow Condensed'", fontSize: 11, fontWeight: 700,
-              color: statusDot[saveStatus], letterSpacing: "0.1em",
-              flexShrink: 0,
-            }}>
-              <div style={{
-                width: 7, height: 7, borderRadius: "50%",
-                background: statusDot[saveStatus],
-                boxShadow: saveStatus === "saved" ? `0 0 6px ${statusDot[saveStatus]}` : "none",
-                animation: saveStatus === "saving" ? "pulse 1s ease-in-out infinite" : "none",
-              }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6, ...overline({ fontSize: 10.5, color: statusColor[saveStatus], letterSpacing: "0.08em" }), flexShrink: 0 }}>
+              <div style={{ width: 7, height: 7, borderRadius: "50%", background: statusColor[saveStatus],
+                animation: saveStatus === "saving" ? "pm-pulse 1s ease-in-out infinite" : "none" }} />
               {statusTxt[saveStatus]}
             </div>
           )}
         </div>
 
         {/* Stats bar */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
-          gap: 6,
-        }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
           {[
-            { label: "PLAYERS", value: players.length, color: "rgba(255,255,255,0.5)" },
-            { label: "AT RISK (3+)", value: atRisk, color: atRisk > 0 ? "#FFD700" : "rgba(255,255,255,0.3)" },
-            { label: "FOUL OUT", value: fouledOut, color: fouledOut > 0 ? "#FF3333" : "rgba(255,255,255,0.3)" },
+            { label: "PLAYERS", value: players.length, color: c.dim },
+            { label: "AT RISK", value: atRisk, color: atRisk > 0 ? c.gold : c.mute },
+            { label: "FOUL OUT", value: fouledOut, color: fouledOut > 0 ? c.danger : c.mute },
           ].map(s => (
-            <div key={s.label} style={{
-              background: "rgba(0,0,0,0.25)", borderRadius: 8,
-              padding: "7px 10px", textAlign: "center",
-            }}>
-              <div style={{
-                fontFamily: "'Oswald'", fontSize: 22, fontWeight: 700,
-                color: s.color, lineHeight: 1,
-              }}>{s.value}</div>
-              <div style={{
-                fontFamily: "'Barlow Condensed'", fontSize: 8, fontWeight: 800,
-                color: "rgba(255,255,255,0.2)", letterSpacing: "0.3em", marginTop: 2,
-              }}>{s.label}</div>
+            <div key={s.label} style={{ background: c.bgInset, borderRadius: r.sm, padding: "8px 10px", textAlign: "center", border: `1px solid ${c.line}` }}>
+              <div style={{ fontFamily: font.num, fontSize: 22, fontWeight: 700, color: s.color, lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{s.value}</div>
+              <div style={{ ...overline({ fontSize: 8.5, marginTop: 3, letterSpacing: "0.18em" }) }}>{s.label}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── COLUMN HEADERS ─────────────────────────────────── */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "40px 1fr 110px 12px",
-        gap: 8, padding: "6px 14px 5px",
-        background: "rgba(0,0,0,0.3)",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
-      }}>
-        {["#", "ชื่อผู้เล่น / FOULS", "จำนวนฟาวล์", ""].map((h, i) => (
-          <div key={i} style={{
-            fontFamily: "'Barlow Condensed'", fontSize: 9, fontWeight: 800,
-            color: "rgba(255,255,255,0.2)", letterSpacing: "0.3em",
-            textAlign: i === 2 ? "center" : "left",
-          }}>{h}</div>
+      {/* COLUMN HEADERS */}
+      <div style={{ display: "grid", gridTemplateColumns: "40px 1fr 108px 16px", gap: 8, padding: "7px 14px",
+        background: c.bgInset, borderBottom: `1px solid ${c.line}` }}>
+        {["#", "ชื่อผู้เล่น / FOULS", "ฟาวล์", ""].map((h, i) => (
+          <div key={i} style={{ ...overline({ fontSize: 8.5, letterSpacing: "0.16em", textAlign: i === 2 ? "center" : "left" }) }}>{h}</div>
         ))}
       </div>
 
-      {/* ── PLAYER LIST ────────────────────────────────────── */}
+      {/* PLAYER LIST */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         {players.length === 0 ? (
-          <div style={{
-            padding: "32px 20px", textAlign: "center",
-            fontFamily: "'Barlow Condensed'", fontSize: 14,
-            color: "rgba(255,255,255,0.2)", letterSpacing: "0.1em",
-          }}>กด "+ เพิ่มผู้เล่น" เพื่อเริ่มต้น</div>
+          <div style={{ padding: "32px 20px", textAlign: "center", ...overline({ fontSize: 12, color: c.faint, letterSpacing: "0.08em" }) }}>กด “เพิ่มผู้เล่น” เพื่อเริ่มต้น</div>
         ) : (
           players.map((p, i) => (
-            <PlayerRow
-              key={i}
-              player={p}
-              index={i}
-              color={color}
-              onChange={np => updatePlayer(i, np)}
-              onRemove={() => removePlayer(i)}
-              canRemove={players.length > 1}
-            />
+            <PlayerRow key={i} player={p} index={i} color={color}
+              onChange={np => updatePlayer(i, np)} onRemove={() => removePlayer(i)} canRemove={players.length > 1} />
           ))
         )}
       </div>
 
-      {/* ── FOOTER ACTIONS ─────────────────────────────────── */}
-      <div style={{
-        padding: "10px 12px",
-        borderTop: "1px solid rgba(255,255,255,0.05)",
-        background: "rgba(0,0,0,0.3)",
-        display: "flex", gap: 8,
-      }}>
-        <button
-          onClick={addPlayer}
-          disabled={players.length >= MAX_PLAYERS}
-          style={{
-            flex: 1, padding: "10px 0",
-            background: `${color}14`,
-            border: `1px solid ${color}35`,
-            borderRadius: 8, color,
-            ...S({ fontSize: 13, letterSpacing: "0.2em" }),
-            cursor: players.length >= MAX_PLAYERS ? "not-allowed" : "pointer",
-            opacity: players.length >= MAX_PLAYERS ? 0.35 : 1,
-            transition: "all 0.15s",
-          }}
-        >+ เพิ่มผู้เล่น ({players.length}/{MAX_PLAYERS})</button>
-
-        <button
-          onClick={resetFouls}
-          style={{
-            padding: "10px 14px",
-            background: "rgba(255,80,80,0.07)",
-            border: "1px solid rgba(255,80,80,0.2)",
-            borderRadius: 8, color: "#FF8080",
-            ...S({ fontSize: 13, letterSpacing: "0.12em" }),
-            cursor: "pointer", transition: "all 0.15s",
-          }}
-        >↺ RESET</button>
+      {/* FOOTER */}
+      <div style={{ padding: "10px 12px", borderTop: `1px solid ${c.line}`, background: c.bgInset, display: "flex", gap: 8 }}>
+        <button onClick={addPlayer} disabled={players.length >= MAX_PLAYERS} className="press" style={{
+          ...btn(color, { active: true }), flex: 1, padding: "10px 0", fontSize: 13, letterSpacing: "0.06em",
+          cursor: players.length >= MAX_PLAYERS ? "not-allowed" : "pointer", opacity: players.length >= MAX_PLAYERS ? 0.35 : 1 }}>
+          + เพิ่มผู้เล่น ({players.length}/{MAX_PLAYERS})
+        </button>
+        <button onClick={resetFouls} className="press" style={{ ...btn("danger"), padding: "10px 14px", fontSize: 13 }}>↺ RESET</button>
       </div>
     </div>
   );
@@ -549,15 +259,12 @@ export default function PlayerManager({ onBack }) {
   const [saveStatusB, setSaveStatusB] = useState(null);
   const [connected,   setConnected]   = useState(false);
   const [lastSync,    setLastSync]    = useState(null);
-  const [activeTab,   setActiveTab]   = useState("teamA"); // mobile only
 
-  const isFirstLoad = useRef(true);
-  const pendingA    = useRef(null);
-  const pendingB    = useRef(null);
+  const editingA = useRef(false);
+  const editingB = useRef(false);
+  const pendingA = useRef(null);
+  const pendingB = useRef(null);
 
-  const S = (s) => ({ fontFamily: "'Bebas Neue', sans-serif", ...s });
-
-  // ── Load from Firebase ────────────────────────────────────
   useEffect(() => {
     const parse = (d, key) => ({
       name:    d?.name    || TEAM_DEFAULTS[key].name,
@@ -565,24 +272,24 @@ export default function PlayerManager({ onBack }) {
       logo:    d?.logo    || "",
       players: Array.isArray(d?.players) ? d.players : defaultTeamData(key).players,
     });
-
+    // Skip applying a remote snapshot while this client has an unsaved local edit
+    // in flight (debounced save pending) so it doesn't get stomped mid-typing —
+    // but always accept remote updates otherwise, so multi-client edits stay live.
     const uA = onValue(ref(db, `${DB_PATH}/teamA`), (snap) => {
-      if (isFirstLoad.current) setDataA(parse(snap.val(), "teamA"));
-      setConnected(true); setLastSync(new Date());
+      if (!editingA.current) setDataA(parse(snap.val(), "teamA"));
+      setLastSync(new Date());
     });
     const uB = onValue(ref(db, `${DB_PATH}/teamB`), (snap) => {
-      if (isFirstLoad.current) setDataB(parse(snap.val(), "teamB"));
-      setConnected(true); setLastSync(new Date());
-      isFirstLoad.current = false;
+      if (!editingB.current) setDataB(parse(snap.val(), "teamB"));
+      setLastSync(new Date());
     });
-    return () => { uA(); uB(); };
+    const uConn = onValue(ref(db, ".info/connected"), (snap) => setConnected(!!snap.val()));
+    return () => { uA(); uB(); uConn(); };
   }, []);
 
-  // ── Save to Firebase + sync logos to localStorage ─────────
   const saveTeam = useCallback(async (teamKey, data, setStatus) => {
     setStatus("saving");
     try {
-      // Sync logo to localStorage so overlay.html picks it up
       const lsKey = teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B;
       if (data.logo) localStorage.setItem(lsKey, data.logo);
       else localStorage.removeItem(lsKey);
@@ -591,11 +298,7 @@ export default function PlayerManager({ onBack }) {
         name:      data.name,
         color:     data.color,
         logo:      data.logo || "",
-        players:   data.players.map(p => ({
-          num:   p.num   || "",
-          name:  p.name  || "",
-          fouls: p.fouls || 0,
-        })),
+        players:   data.players.map(p => ({ num: p.num || "", name: p.name || "", fouls: p.fouls || 0 })),
         updatedAt: Date.now(),
       });
       setStatus("saved");
@@ -611,12 +314,14 @@ export default function PlayerManager({ onBack }) {
   const handleUpdate = useCallback((teamKey, newData) => {
     if (teamKey === "teamA") {
       setDataA(newData);
+      editingA.current = true;
       clearTimeout(pendingA.current);
-      pendingA.current = setTimeout(() => saveTeam("teamA", newData, setSaveStatusA), 700);
+      pendingA.current = setTimeout(() => { saveTeam("teamA", newData, setSaveStatusA); editingA.current = false; }, 700);
     } else {
       setDataB(newData);
+      editingB.current = true;
       clearTimeout(pendingB.current);
-      pendingB.current = setTimeout(() => saveTeam("teamB", newData, setSaveStatusB), 700);
+      pendingB.current = setTimeout(() => { saveTeam("teamB", newData, setSaveStatusB); editingB.current = false; }, 700);
     }
   }, [saveTeam]);
 
@@ -625,133 +330,54 @@ export default function PlayerManager({ onBack }) {
     saveTeam("teamB", dataB, setSaveStatusB);
   };
 
-  // ── Render ────────────────────────────────────────────────
+  const navBtn = (extra = {}) => ({ ...btn("neutral"), padding: "7px 14px", borderRadius: r.pill, fontSize: 12, letterSpacing: "0.1em", ...extra });
+
   return (
-    <div style={{
-      height: "100vh", display: "flex", flexDirection: "column",
-      background: "radial-gradient(ellipse at 30% 0%, #0f0a22 0%, #07070e 60%)",
-      fontFamily: "system-ui, sans-serif",
-      overflow: "hidden",
-    }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: c.bg, color: c.text, fontFamily: font.body, overflow: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;700&family=Barlow+Condensed:wght@500;600;700;800&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        input::placeholder { color: rgba(255,255,255,0.18) !important; }
-        input:focus { outline: none !important; }
-        button:active { transform: scale(0.93); }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        ${FONT_IMPORT}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        input::placeholder{color:${c.faint} !important;}
+        input:focus{outline:none !important;}
+        .press:active{transform:scale(0.96);}
+        ::-webkit-scrollbar{width:6px;}
+        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px;}
+        @keyframes pm-pulse{0%,100%{opacity:1}50%{opacity:0.4}}
       `}</style>
 
-      {/* ─── TOP BAR ──────────────────────────────────────── */}
-      <div style={{
-        display: "flex", alignItems: "center",
-        padding: "0 16px", height: 56,
-        background: "rgba(0,0,0,0.5)",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
-        flexShrink: 0, gap: 12,
-        backdropFilter: "blur(12px)",
-      }}>
-        <button onClick={onBack} style={{
-          background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: 7, color: "rgba(255,255,255,0.4)",
-          ...S({ fontSize: 11, letterSpacing: "0.15em" }),
-          padding: "6px 12px", cursor: "pointer", flexShrink: 0,
-        }}>← HOME</button>
-
+      {/* TOP BAR */}
+      <div style={{ display: "flex", alignItems: "center", padding: "0 16px", height: 56,
+        background: c.surface, borderBottom: `1px solid ${c.line}`, flexShrink: 0, gap: 12 }}>
+        <button onClick={onBack} style={navBtn({ color: c.dim })}>← HOME</button>
         <div style={{ flex: 1 }}>
-          <div style={{
-            ...S({ fontSize: 20, letterSpacing: "0.2em" }),
-            background: "linear-gradient(90deg, #FF6B35, #FFD700, #00D4FF)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            lineHeight: 1,
-          }}>PLAYER MANAGER</div>
-          <div style={{
-            fontFamily: "'Barlow Condensed'", fontSize: 9, fontWeight: 800,
-            color: "rgba(255,255,255,0.15)", letterSpacing: "0.4em", marginTop: 1,
-          }}>จัดการผู้เล่น · FIREBASE SYNC</div>
+          <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 19, letterSpacing: "0.05em", lineHeight: 1 }}>
+            PLAYER <span style={{ color: c.dim, fontWeight: 300 }}>MANAGER</span>
+          </div>
+          <div style={{ ...overline({ fontSize: 8.5, marginTop: 2, letterSpacing: "0.32em" }) }}>ROSTER · FIREBASE SYNC</div>
         </div>
 
-        {/* Firebase status */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 5,
-          padding: "4px 10px", borderRadius: 100,
-          background: connected ? "rgba(0,232,122,0.07)" : "rgba(255,85,85,0.07)",
-          border: `1px solid ${connected ? "rgba(0,232,122,0.2)" : "rgba(255,85,85,0.2)"}`,
-          ...S({ fontSize: 10, letterSpacing: "0.2em" }),
-          color: connected ? "#00E87A" : "#FF6666",
-          flexShrink: 0,
-        }}>
-          <div style={{
-            width: 6, height: 6, borderRadius: "50%",
-            background: connected ? "#00E87A" : "#FF6666",
-          }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: r.pill,
+          background: connected ? c.liveDim : c.dangerDim, border: `1px solid ${connected ? "rgba(63,185,139,0.28)" : "rgba(222,91,87,0.28)"}`,
+          ...overline({ fontSize: 10, color: connected ? c.live : c.danger, letterSpacing: "0.14em" }), flexShrink: 0 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: connected ? c.live : c.danger }} />
           {connected ? "LIVE" : "OFF"}
         </div>
 
-        {lastSync && (
-          <div style={{
-            fontFamily: "'Barlow Condensed'", fontSize: 10,
-            color: "rgba(255,255,255,0.2)", flexShrink: 0,
-          }}>{lastSync.toLocaleTimeString("th-TH")}</div>
-        )}
+        {lastSync && <div style={{ fontFamily: font.num, fontSize: 12, color: c.faint, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{lastSync.toLocaleTimeString("th-TH")}</div>}
 
-        <button onClick={saveAll} style={{
-          padding: "7px 16px", borderRadius: 7,
-          background: "rgba(255,215,0,0.1)",
-          border: "1px solid rgba(255,215,0,0.3)",
-          color: "#FFD700", cursor: "pointer",
-          ...S({ fontSize: 12, letterSpacing: "0.15em" }),
-          flexShrink: 0,
-        }}>💾 SAVE ALL</button>
+        <button onClick={saveAll} className="press" style={{ ...btn("gold", { active: true }), padding: "7px 16px", borderRadius: r.pill, fontSize: 12, letterSpacing: "0.1em", flexShrink: 0 }}>SAVE ALL</button>
       </div>
 
-      {/* ─── MOBILE TABS ──────────────────────────────────── */}
-      <div style={{
-        display: "none",
-        "@media (maxWidth: 900px)": { display: "flex" },
-      }}>
-        {/* Tabs only show on small screens via JS check */}
+      {/* MAIN 2-PANEL */}
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, padding: 12, overflow: "hidden", minHeight: 0 }}>
+        <TeamPanel teamKey="teamA" data={dataA} saveStatus={saveStatusA} onUpdate={handleUpdate} />
+        <TeamPanel teamKey="teamB" data={dataB} saveStatus={saveStatusB} onUpdate={handleUpdate} />
       </div>
 
-      {/* ─── MAIN 2-PANEL CONTENT ─────────────────────────── */}
-      <div style={{
-        flex: 1,
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 12, padding: "12px",
-        overflow: "hidden",
-        minHeight: 0,
-      }}>
-        <TeamPanel
-          teamKey="teamA"
-          data={dataA}
-          saveStatus={saveStatusA}
-          onUpdate={handleUpdate}
-        />
-        <TeamPanel
-          teamKey="teamB"
-          data={dataB}
-          saveStatus={saveStatusB}
-          onUpdate={handleUpdate}
-        />
-      </div>
-
-      {/* ─── INFO FOOTER ──────────────────────────────────── */}
-      <div style={{
-        padding: "6px 16px",
-        textAlign: "center",
-        fontFamily: "'Barlow Condensed'", fontSize: 9,
-        color: "rgba(255,255,255,0.1)", letterSpacing: "0.15em",
-        flexShrink: 0,
-        borderTop: "1px solid rgba(255,255,255,0.04)",
-      }}>
-        Firebase: <code style={{ color: "rgba(255,255,255,0.2)" }}>player_data/teamA</code>
-        {" · "}
-        <code style={{ color: "rgba(255,255,255,0.2)" }}>player_data/teamB</code>
-        {" · Logo sync → localStorage overlay_logo_a/b"}
+      {/* FOOTER */}
+      <div style={{ padding: "7px 16px", textAlign: "center", ...overline({ fontSize: 9, color: c.faint, letterSpacing: "0.14em" }),
+        flexShrink: 0, borderTop: `1px solid ${c.lineSoft}` }}>
+        FIREBASE · player_data/teamA · player_data/teamB · logo sync → overlay
       </div>
     </div>
   );

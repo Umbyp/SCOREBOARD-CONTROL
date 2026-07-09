@@ -2,257 +2,247 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Basketball Overlay - Pro Sync</title>
-  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Barlow+Condensed:wght@500;700;800&family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <title>Basketball Overlay — Thai League</title>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
-    /* 1920x1080 Layout for OBS */
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent !important; }
 
-    #score-bug {
-      position: absolute; top: 40px; left: 50%;
-      transform: translateX(-50%);
-      display: flex; flex-direction: column; align-items: center;
+    :root {
+      --gold: #E4BF55;
+      --black: #0C0D11;
+      --skew: -13deg;
     }
-    #main-bar {
-      display: flex; height: 76px;
-      background: rgba(14,16,24,0.97);
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.12);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.7);
+
+    #score-bug { position: absolute; top: 42px; left: 50%; transform: translateX(-50%); }
+
+    #bar {
+      display: flex; align-items: stretch; height: 68px;
+      background: var(--black);
+      border-radius: 5px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.55);
       overflow: hidden;
-    }
-
-    /* Team Styling */
-    .team-box { display: flex; align-items: stretch; height: 100%; }
-    .color-strip { width: 5px; background: var(--tc); flex-shrink: 0; }
-
-    /* LOGO Logic */
-    .logo-wrap { width: 60px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); flex-shrink: 0; position: relative; }
-    .logo-img { width: 46px; height: 46px; object-fit: contain; border-radius: 4px; opacity: 0; transition: opacity 0.4s; }
-    .logo-img.show { opacity: 0.92; }
-    .logo-ph { position: absolute; width: 40px; height: 40px; border-radius: 50%; background: var(--tc); opacity: 0.2; display: flex; align-items: center; justify-content: center; font-family: 'Bebas Neue',sans-serif; font-size: 20px; color: #fff; }
-    .logo-ph.hide { opacity: 0; pointer-events: none; }
-
-    .team-info { display: flex; flex-direction: column; justify-content: center; padding: 0 14px; width: 190px; overflow: hidden; }
-    #box-a .team-info { align-items: flex-start; }
-    #box-b .team-info { align-items: flex-end; }
-    
-    .name-row { display: flex; align-items: center; gap: 7px; width: 100%; }
-    #box-b .name-row { flex-direction: row-reverse; }
-    
-    /* ลูกศรชี้ออกข้าง (Possession) */
-    .poss-arrow { display: flex; align-items: center; justify-content: center; width: 28px; background: rgba(0,0,0,0.3); }
-    .poss { font-family: 'Oswald',sans-serif; font-size: 20px; color: var(--tc); visibility: hidden; line-height: 1; }
-    .poss.on { visibility: visible; animation: poss-pulse 1.5s infinite; }
-    @keyframes poss-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    
-    .tname { font-family: 'Oswald',sans-serif; font-size: 26px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; line-height: 1.1; }
-    
-    .meta-row { display: flex; gap: 10px; align-items: center; margin-top: 3px; width: 100%; }
-    #box-b .meta-row { flex-direction: row-reverse; }
-    
-    /* Labels สำหรับ Timeout & Fouls */
-    .meta-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 800; color: rgba(255,255,255,0.4); letter-spacing: 0.1em; margin-right: 4px; }
-    #box-b .meta-label { margin-right: 0; margin-left: 4px; }
-
-    .torow { display: flex; gap: 3px; align-items: center; }
-    .tp { width: 11px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); }
-    .tp.on { background: #fff; }
-    
-    .foul-wrapper { display: flex; align-items: center; }
-    .foul-num { font-family: 'Oswald',sans-serif; font-size: 14px; font-weight: 700; color: #fff; line-height: 1; }
-    
-    .bonus-tag { display: none; font-family: 'Barlow Condensed',sans-serif; font-size: 10px; font-weight: 800; color: #FFD700; padding: 1px 5px; border-radius: 3px; background: rgba(255,215,0,0.12); border: 1px solid rgba(255,215,0,0.3); margin-left: 6px; }
-    #box-b .bonus-tag { margin-left: 0; margin-right: 6px; }
-    .bonus-tag.on { display: block; }
-    
-    .score-area { width: 88px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); }
-    .score-num { font-family: 'Oswald',sans-serif; font-size: 54px; font-weight: 700; color: var(--tc); line-height: 1; }
-    .score-num.bump { animation: score-bump 0.3s ease-out; }
-    @keyframes score-bump { 0%{transform:scale(1)} 50%{transform:scale(1.2)} 100%{transform:scale(1)} }
-
-    /* --- NEW CENTER BLOCK (Fixed Width & Tabular Nums) --- */
-    #center-block {
-      width: 250px; /* Fixed Width ป้องกันกล่องขยับ */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0,0,0,0.6);
-      position: relative;
-    }
-    
-    #jump-indicator {
-      position: absolute;
-      top: 4px;
-      font-family: 'Barlow Condensed', sans-serif;
-      font-size: 10px;
-      font-weight: 800;
-      color: #FFD700;
-      letter-spacing: 0.2em;
-      display: none;
-    }
-
-    .clock-col {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      width: 90px;
-    }
-
-    .clock-lbl {
-      font-family: 'Barlow Condensed', sans-serif;
-      font-size: 11px;
-      color: rgba(255,255,255,0.3);
-      letter-spacing: 0.1em;
-      margin-bottom: -3px;
-    }
-
-    #mclock, #shotval {
       font-family: 'Oswald', sans-serif;
-      font-size: 38px;
-      font-weight: 700;
-      line-height: 1;
-      font-variant-numeric: tabular-nums; /* ล็อคความกว้างตัวเลขทุกตัวให้เท่ากัน */
     }
 
-    #mclock { color: #FFF; }
-    #mclock.expired { color: #FF2222; }
-
-    #shotval { color: #FFD700; }
-    #shot-col.urgent .clock-lbl { color: #FF3333; }
-    #shot-col.urgent #shotval { color: #FF3333; }
-
-    .period-divider {
-      width: 44px;
-      height: 38px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-left: 1px solid rgba(255,255,255,0.1);
-      border-right: 1px solid rgba(255,255,255,0.1);
-      background: rgba(255,255,255,0.03);
-      margin: 0 5px;
+    /* ── League block ─────────────────────────────── */
+    #league {
+      display: flex; align-items: center; gap: 11px;
+      padding: 0 16px 0 13px;
+      background: linear-gradient(180deg,#15161c,#0a0b0f);
+      border-right: 1px solid rgba(255,255,255,0.06);
     }
-    #qlabel {
-      font-family: 'Oswald', sans-serif;
-      font-size: 20px;
-      font-weight: 700;
-      color: #FFD700;
+    #league .seal {
+      width: 42px; height: 42px; border-radius: 50%;
+      border: 1.5px solid var(--gold);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; background: rgba(228,191,85,0.06); position: relative;
+    }
+    #lg-logo { display: none; width: 40px; height: 40px; object-fit: contain; }
+    #league .seal.has-logo { border-color: transparent; background: transparent; width: 46px; height: 46px; }
+    #league .seal.has-logo svg { display: none; }
+    #league .seal.has-logo #lg-logo { display: block; width: 46px; height: 46px; }
+    #league .txt { line-height: 1; }
+    #league .txt .l1 {
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+      font-size: 12px; letter-spacing: 0.14em; color: #EDEFF3;
+    }
+    #league .txt .l2 {
+      font-family: 'Barlow Condensed', sans-serif; font-weight: 700;
+      font-size: 11px; letter-spacing: 0.14em; color: rgba(237,239,243,0.55);
+      margin-top: 1px;
+    }
+    #league .txt .yr {
+      font-weight: 700; font-size: 24px; letter-spacing: 0.02em;
+      color: var(--gold); margin-top: 1px;
     }
 
-    /* Overlay Callouts */
-    #timeout-overlay { position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%) translateY(30px); opacity: 0; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    #timeout-overlay.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
-    #to-main { display: flex; background: rgba(10,10,20,0.95); border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
-    #to-text { padding: 15px 25px; }
-    #to-team-name { font-family: 'Oswald',sans-serif; font-size: 32px; font-weight: 700; line-height: 1; }
-    
-    #score-flash { position: absolute; top: 130px; left: 50%; transform: translateX(-50%) scale(0.8); opacity: 0; background: rgba(10,10,20,0.95); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    #score-flash.show { opacity: 1; transform: translateX(-50%) scale(1); }
+    /* ── Logo cells ───────────────────────────────── */
+    .logo-cell {
+      width: 58px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #05060a; position: relative;
+    }
+    .logo-img { width: 46px; height: 46px; object-fit: contain; opacity: 0; transition: opacity .4s; }
+    .logo-img.show { opacity: 1; }
+    .logo-ph {
+      position: absolute; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--tc); opacity: 0.25;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 20px; color: #fff;
+    }
+    .logo-ph.hide { display: none; }
+
+    /* ── Team name panels (slanted) ───────────────── */
+    .panel { position: relative; display: flex; align-items: center; padding: 0 22px; min-width: 168px; }
+    #panel-a { padding-left: 18px; padding-right: 28px; margin-left: -10px; }
+    #panel-b { padding-right: 18px; padding-left: 28px; margin-right: -10px; }
+    .panel .pbg { position: absolute; inset: 0; z-index: 0; transform: skewX(var(--skew)); }
+    #panel-a .pbg { background: linear-gradient(180deg,#f4f4f2,#e4e4e0); }
+    #panel-b .pbg { background: linear-gradient(180deg, var(--tc), color-mix(in srgb, var(--tc) 74%, #000)); }
+    /* gold seam line at the inner (center-facing) edge */
+    .panel .seam { position: absolute; top: 0; bottom: 0; width: 4px; background: var(--gold); z-index: 2; transform: skewX(var(--skew)); }
+    #panel-a .seam { right: -2px; }
+    #panel-b .seam { left: -2px; }
+    .panel .inner { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; width: 100%; }
+    #panel-b .inner { align-items: flex-end; }
+
+    .tname { font-weight: 700; font-size: 27px; line-height: 1; letter-spacing: 0.02em; white-space: nowrap; }
+    #panel-a .tname { color: #17181d; }
+    #panel-b .tname { color: var(--gold); }
+    .tname.poss { text-shadow: 0 0 1px currentColor; }
+
+    /* foul dashes */
+    .dashes { display: flex; gap: 5px; margin-top: 7px; }
+    #panel-b .dashes { flex-direction: row-reverse; }
+    .dash { width: 20px; height: 3px; border-radius: 2px; transition: background .25s; }
+    #panel-a .dash { background: rgba(0,0,0,0.16); }
+    #panel-a .dash.on { background: #17181d; }
+    #panel-a .dash.bonus { background: #C9483F; }
+    #panel-b .dash { background: rgba(255,255,255,0.28); }
+    #panel-b .dash.on { background: #fff; }
+    #panel-b .dash.bonus { background: var(--gold); }
+
+    /* possession underline */
+    .possline { height: 2px; margin-top: 4px; width: 40px; border-radius: 2px; background: transparent; transition: background .3s, box-shadow .3s; }
+    #panel-b .possline { align-self: flex-end; }
+    .possline.on { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+
+    /* ── Score cells ──────────────────────────────── */
+    .score-cell {
+      width: 92px; flex-shrink: 0; position: relative;
+      display: flex; align-items: center; justify-content: center;
+      background: #0C0D11;
+    }
+    .score-num { font-weight: 700; font-size: 48px; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
+    .score-num.bump { animation: bump .34s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes bump { 0%{transform:scale(1)} 45%{transform:scale(1.22)} 100%{transform:scale(1)} }
+
+    .plus {
+      position: absolute; top: 0; left: 0;
+      transform: translate(-50%, 0) scale(0.7);
+      font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 30px; line-height: 1;
+      color: var(--gold); opacity: 0; pointer-events: none;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 2px 10px rgba(0,0,0,0.7); z-index: 5;
+    }
+    .plus.go { animation: plusrise 1.15s cubic-bezier(.2,.7,.3,1) forwards; }
+    @keyframes plusrise {
+      0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.6); }
+      18%  { opacity: 1; transform: translate(-50%, -4px) scale(1.2); }
+      55%  { opacity: 1; transform: translate(-50%, -26px) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50px) scale(0.95); }
+    }
+
+    /* center gold divider between the two scores */
+    #center-div { width: 3px; flex-shrink: 0; background: var(--gold); transform: skewX(var(--skew)); align-self: stretch; }
+
+    /* ── Info block (period / game / shot) ────────── */
+    #info { display: flex; align-items: stretch; background: linear-gradient(180deg,#15161c,#0a0b0f); border-left: 1px solid rgba(255,255,255,0.06); }
+    .info-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 4px; position: relative; }
+    .info-cell + .info-cell::before { content:''; position:absolute; left:0; top:14px; bottom:14px; width:1px; background: rgba(255,255,255,0.08); }
+    .info-lbl { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:9px; letter-spacing:0.16em; color: rgba(237,239,243,0.4); margin-bottom: 1px; }
+    #period { width: 60px; }
+    #period .v { font-weight: 700; font-size: 22px; color: var(--gold); line-height: 1; }
+    #game { width: 96px; }
+    #game .v { font-weight: 700; font-size: 30px; color: #fff; line-height: 1; font-variant-numeric: tabular-nums; }
+    #game .v.expired { color: #DE5B57; }
+    #shot { width: 66px; }
+    #shot .v { font-weight: 700; font-size: 30px; color: var(--gold); line-height: 1; font-variant-numeric: tabular-nums; }
+    #shot.urgent .info-lbl, #shot.urgent .v { color: #DE5B57; }
+    #jump { position:absolute; top:3px; left:50%; transform:translateX(-50%); font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:8px; letter-spacing:0.2em; color:var(--gold); display:none; }
+
+    /* ── Timeout callout ──────────────────────────── */
+    #to-overlay { position:absolute; top:130px; left:50%; transform:translateX(-50%) translateY(20px); opacity:0; transition:all .4s cubic-bezier(.175,.885,.32,1.275); }
+    #to-overlay.visible { opacity:1; transform:translateX(-50%) translateY(0); }
+    #to-main { display:flex; align-items:stretch; background:rgba(12,13,17,0.97); border-radius:10px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.7); }
+    #to-bar { width:6px; background:var(--gold); }
+    #to-text { padding:13px 26px; }
+    #to-team-name { font-weight:700; font-size:30px; line-height:1; }
+    #to-sub { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:13px; color:rgba(237,239,243,0.5); letter-spacing:0.28em; margin-top:3px; }
   </style>
 </head>
 <body>
 
 <div id="score-bug">
-  <div id="main-bar">
-    <div class="team-box" id="box-a" style="--tc:#FF6B35;">
-      <div class="color-strip"></div>
-      
-      <div class="poss-arrow">
-        <div class="poss" id="poss-a">◀</div>
-      </div>
+  <div id="bar">
 
-      <div class="logo-wrap">
-        <div id="logo-ph-a" class="logo-ph">H</div>
-        <img id="logo-img-a" class="logo-img" src="" alt="logo" />
+    <!-- League -->
+    <div id="league">
+      <div class="seal" id="lg-seal">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E4BF55" stroke-width="1.4">
+          <circle cx="12" cy="12" r="9.4"/>
+          <path d="M12 2.6v18.8M2.6 12h18.8M5 5c3.5 2.5 3.5 11.5 0 14M19 5c-3.5 2.5-3.5 11.5 0 14" stroke-opacity="0.75"/>
+        </svg>
+        <img id="lg-logo" alt="" />
       </div>
-      <div class="team-info">
-        <div class="name-row">
-          <div class="tname" id="nm-a">HOME</div>
-        </div>
-        <div class="meta-row">
-          <div class="torow">
-            <span class="meta-label">T.O.</span>
-            <div id="to-a" style="display: flex; gap: 3px;"></div>
-          </div>
-          <div class="foul-wrapper">
-            <span class="meta-label">FOULS</span>
-            <div class="foul-num" id="fn-a">0</div>
-          </div>
-          <div class="bonus-tag" id="bt-a">BONUS</div>
-        </div>
-      </div>
-      <div class="score-area"><div class="score-num" id="sc-a">0</div></div>
-    </div>
-
-    <div id="center-block">
-      <div id="jump-indicator">⊕ JUMP</div>
-      
-      <div class="clock-col">
-        <div class="clock-lbl">GAME</div>
-        <div id="mclock">10:00</div>
-      </div>
-
-      <div class="period-divider">
-        <div id="qlabel">Q1</div>
-      </div>
-
-      <div class="clock-col" id="shot-col">
-        <div class="clock-lbl">SHOT</div>
-        <div id="shotval">24</div>
+      <div class="txt">
+        <div class="l1" id="lg-l1">BASKETBALL</div>
+        <div class="l2" id="lg-l2">THAI LEAGUE</div>
+        <div class="yr" id="lg-yr">2026</div>
       </div>
     </div>
 
-    <div class="team-box" id="box-b" style="--tc:#00D4FF;">
-      <div class="score-area"><div class="score-num" id="sc-b">0</div></div>
-      <div class="team-info">
-        <div class="name-row">
-          <div class="tname" id="nm-b">AWAY</div>
-        </div>
-        <div class="meta-row">
-          <div class="torow">
-            <span class="meta-label">T.O.</span>
-            <div id="to-b" style="display: flex; gap: 3px; flex-direction: row-reverse;"></div>
-          </div>
-          <div class="foul-wrapper" style="flex-direction: row-reverse;">
-            <span class="meta-label">FOULS</span>
-            <div class="foul-num" id="fn-b">0</div>
-          </div>
-          <div class="bonus-tag" id="bt-b">BONUS</div>
-        </div>
-      </div>
-      <div class="logo-wrap">
-        <div id="logo-ph-b" class="logo-ph">A</div>
-        <img id="logo-img-b" class="logo-img" src="" alt="logo" />
-      </div>
-      
-      <div class="poss-arrow">
-        <div class="poss" id="poss-b">▶</div>
-      </div>
-      
-      <div class="color-strip"></div>
+    <!-- Home logo -->
+    <div class="logo-cell" style="--tc:#E86A3A;" id="lc-a">
+      <div id="logo-ph-a" class="logo-ph">H</div>
+      <img id="logo-img-a" class="logo-img" src="" alt="" />
     </div>
+
+    <!-- Home panel -->
+    <div class="panel" id="panel-a" style="--tc:#E86A3A;">
+      <div class="pbg"></div><div class="seam"></div>
+      <div class="inner">
+        <div class="tname" id="nm-a">HOME</div>
+        <div class="dashes" id="fd-a"></div>
+        <div class="possline" id="poss-a"></div>
+      </div>
+    </div>
+
+    <!-- Home score -->
+    <div class="score-cell" id="scell-a"><div class="score-num" id="sc-a">0</div></div>
+
+    <div id="center-div"></div>
+
+    <!-- Away score -->
+    <div class="score-cell" id="scell-b"><div class="score-num" id="sc-b">0</div></div>
+
+    <!-- Away panel -->
+    <div class="panel" id="panel-b" style="--tc:#2FA8DC;">
+      <div class="pbg"></div><div class="seam"></div>
+      <div class="inner">
+        <div class="tname" id="nm-b">AWAY</div>
+        <div class="dashes" id="fd-b"></div>
+        <div class="possline" id="poss-b"></div>
+      </div>
+    </div>
+
+    <!-- Away logo -->
+    <div class="logo-cell" style="--tc:#2FA8DC;" id="lc-b">
+      <div id="logo-ph-b" class="logo-ph">A</div>
+      <img id="logo-img-b" class="logo-img" src="" alt="" />
+    </div>
+
+    <!-- Info -->
+    <div id="info">
+      <div class="info-cell" id="period"><div id="jump">JUMP</div><div class="info-lbl">PERIOD</div><div class="v" id="qlabel">1ST</div></div>
+      <div class="info-cell" id="game"><div class="info-lbl">GAME</div><div class="v" id="mclock">10:00</div></div>
+      <div class="info-cell" id="shot"><div class="info-lbl">SHOT</div><div class="v" id="shotval">24</div></div>
+    </div>
+
   </div>
+
+  <!-- Score pop layer (above the bar, not clipped) -->
+  <div class="plus" id="plus-a" style="--pc:#E86A3A;">+2</div>
+  <div class="plus" id="plus-b" style="--pc:#2FA8DC;">+2</div>
 </div>
 
-<div id="timeout-overlay">
+<!-- Timeout callout -->
+<div id="to-overlay">
   <div id="to-main">
-    <div id="to-bar" style="width:8px; background: #FFD700;"></div>
+    <div id="to-bar"></div>
     <div id="to-text">
-      <div id="to-team-name">TEAM NAME</div>
-      <div style="font-family:'Barlow Condensed'; font-size:14px; color:rgba(255,255,255,0.5); letter-spacing:0.2em;">TIMEOUT</div>
-    </div>
-  </div>
-</div>
-
-<div id="score-flash">
-  <div style="padding: 10px 30px; display: flex; align-items: center; gap: 15px;">
-    <div id="sf-bar" style="width:4px; height:40px; background:#FFD700;"></div>
-    <div style="display:flex; flex-direction:column;">
-        <div id="sf-pts" style="font-family:'Oswald'; font-size:32px; color:#fff; line-height:1;">+2</div>
-        <div id="sf-team" style="font-family:'Barlow Condensed'; font-size:12px; color:rgba(255,255,255,0.5);">TEAM NAME</div>
+      <div id="to-team-name">TEAM</div>
+      <div id="to-sub">TIMEOUT</div>
     </div>
   </div>
 </div>
@@ -263,7 +253,6 @@
 <script>
   const SERVER_URL = "https://scoreboard-control.onrender.com";
 
-  // --- 1. Firebase Setup ---
   firebase.initializeApp({
     apiKey: "AIzaSyBUOuEb5MWvZg2BWka1RPn5Qy4WDSDSO3I",
     authDomain: "basketball-tournament-62372.firebaseapp.com",
@@ -276,29 +265,22 @@
   let lastUpdateTimestamp = 0;
   let prevState = null;
 
-  // --- 2. Format Helpers ---
+  // ── Format helpers ──
   function fmtMain(t) {
     t = Math.max(0, t);
-    if (t > 600) {
-      const s = Math.floor(t / 10);
-      return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-    }
-    // ปรับรูปแบบเวลาให้ไม่มี 0 นำหน้า (เช่น 9.9, 0.0)
+    if (t > 600) { const s = Math.floor(t / 10); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
     return Math.floor(t / 10) + "." + Math.floor(t % 10);
   }
-  
-  function fmtShot(t) {
-    t = Math.max(0, t);
-    return t > 100 ? Math.ceil(t / 10) : Math.floor(t / 10) + "." + Math.floor(t % 10);
-  }
+  function fmtShot(t) { t = Math.max(0, t); return t > 100 ? Math.ceil(t / 10) : Math.floor(t / 10) + "." + Math.floor(t % 10); }
+  function ordinal(q) { return q > 4 ? "OT" + (q - 4) : (["1ST","2ND","3RD","4TH"][q - 1] || ("Q" + q)); }
 
-  // --- 3. Main Update Function ---
+  // ── Main render ──
   function render(s) {
     if (!s || !s.teamA) return;
 
     if (prevState) {
-      if (s.teamA.score > prevState.teamA.score) flashScore(s.teamA.name, s.teamA.color, s.teamA.score - prevState.teamA.score, 'a');
-      if (s.teamB.score > prevState.teamB.score) flashScore(s.teamB.name, s.teamB.color, s.teamB.score - prevState.teamB.score, 'b');
+      if (s.teamA.score > prevState.teamA.score) popScore('a', s.teamA.score - prevState.teamA.score);
+      if (s.teamB.score > prevState.teamB.score) popScore('b', s.teamB.score - prevState.teamB.score);
       if (s.teamA.timeouts < prevState.teamA.timeouts) showTO(s.teamA.name, s.teamA.color);
       if (s.teamB.timeouts < prevState.teamB.timeouts) showTO(s.teamB.name, s.teamB.color);
     }
@@ -306,9 +288,8 @@
     updateTeam('a', s.teamA, s.possession === 'teamA');
     updateTeam('b', s.teamB, s.possession === 'teamB');
 
-    // Period & Jumpball Indicator
-    document.getElementById('qlabel').textContent = s.quarter > 4 ? `OT${s.quarter-4}` : `Q${s.quarter}`;
-    document.getElementById('jump-indicator').style.display = s.jumpBall ? "block" : "none";
+    document.getElementById('qlabel').textContent = ordinal(s.quarter);
+    document.getElementById('jump').style.display = s.jumpBall ? "block" : "none";
 
     prevState = JSON.parse(JSON.stringify(s));
     localState = s;
@@ -316,112 +297,117 @@
   }
 
   function updateTeam(id, team, isPoss) {
-    const box = document.getElementById(`box-${id}`);
-    box.style.setProperty('--tc', team.color);
+    document.getElementById(`lc-${id}`).style.setProperty('--tc', team.color);
+    document.getElementById(`panel-${id}`).style.setProperty('--tc', team.color);
+
     document.getElementById(`sc-${id}`).textContent = team.score;
-    
-    // Auto scale name based on length
+
     const nmEl = document.getElementById(`nm-${id}`);
     nmEl.textContent = team.name;
     const l = team.name.length;
-    nmEl.style.fontSize = l <= 8 ? "26px" : l <= 12 ? "20px" : "16px";
+    nmEl.style.fontSize = l <= 6 ? "28px" : l <= 10 ? "24px" : l <= 14 ? "19px" : "15px";
+    nmEl.classList.toggle('poss', isPoss);
 
-    // ปรับ Team Fouls ให้โชว์แค่ 5
-    const displayFouls = Math.min(team.teamFouls, 5);
-    document.getElementById(`fn-${id}`).textContent = displayFouls;
-    document.getElementById(`fn-${id}`).style.color = team.teamFouls >= 5 ? "#FFA500" : "#fff";
-    document.getElementById(`bt-${id}`).className = `bonus-tag ${team.teamFouls >= 5 ? 'on' : ''}`;
-    
-    document.getElementById(`poss-${id}`).className = `poss ${isPoss ? 'on' : ''}`;
-    
-    const toWrap = document.getElementById(`to-${id}`);
-    toWrap.innerHTML = '';
-    for(let i=0; i<3; i++) {
-        const dot = document.createElement('div');
-        dot.className = `tp ${i < team.timeouts ? 'on' : ''}`;
-        toWrap.appendChild(dot);
+    // keep the no-logo placeholder letter in sync with the live team name
+    document.getElementById(`logo-ph-${id}`).textContent = (team.name || (id === 'a' ? 'H' : 'A'))[0];
+
+    // foul dashes (5)
+    const fouls = Math.min(team.teamFouls || 0, 5);
+    const bonus = (team.teamFouls || 0) >= 5;
+    const fd = document.getElementById(`fd-${id}`);
+    fd.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+      const d = document.createElement('div');
+      d.className = 'dash' + (i < fouls ? (bonus ? ' on bonus' : ' on') : '');
+      fd.appendChild(d);
     }
+
+    document.getElementById(`poss-${id}`).className = 'possline' + (isPoss ? ' on' : '');
   }
 
-  // --- 4. Smooth Clock Interpolation ---
+  // ── Clock interpolation ──
   function syncLoop() {
-    // Game Clock
     if (localState && localState.isRunning) {
       const elapsed = Date.now() - lastUpdateTimestamp;
-      const currentTenths = Math.max(0, localState.clockTenths - Math.floor(elapsed / 100));
-      document.getElementById('mclock').textContent = fmtMain(currentTenths);
-      document.getElementById('mclock').classList.toggle('expired', currentTenths <= 0);
+      const cur = Math.max(0, localState.clockTenths - Math.floor(elapsed / 100));
+      const m = document.getElementById('mclock');
+      m.textContent = fmtMain(cur);
+      m.classList.toggle('expired', cur <= 0);
     } else if (localState) {
       document.getElementById('mclock').textContent = fmtMain(localState.clockTenths);
     }
 
-    // Shot Clock
     if (localState) {
-      let currentShot = localState.shotClockTenths;
-      if (localState.shotRunning) {
-        const elapsed = Date.now() - lastUpdateTimestamp;
-        currentShot = Math.max(0, localState.shotClockTenths - Math.floor(elapsed / 100));
-      }
-      
-      document.getElementById('shotval').textContent = fmtShot(currentShot);
-      
-      // Urgent styling (<= 5 seconds)
-      if (currentShot <= 50 && currentShot > 0) {
-        document.getElementById('shot-col').classList.add('urgent');
-      } else {
-        document.getElementById('shot-col').classList.remove('urgent');
-      }
+      let cur = localState.shotClockTenths;
+      if (localState.shotRunning) { const e = Date.now() - lastUpdateTimestamp; cur = Math.max(0, localState.shotClockTenths - Math.floor(e / 100)); }
+      document.getElementById('shotval').textContent = fmtShot(cur);
+      document.getElementById('shot').classList.toggle('urgent', cur <= 50 && cur > 0);
     }
-
     requestAnimationFrame(syncLoop);
   }
   requestAnimationFrame(syncLoop);
 
-  // --- 5. Visual Effects ---
-  function flashScore(name, color, pts, side) {
-    const el = document.getElementById('score-flash');
-    const sc = document.getElementById(`sc-${side}`);
-    document.getElementById('sf-pts').textContent = `+${pts}`;
-    document.getElementById('sf-team').textContent = name;
-    document.getElementById('sf-bar').style.background = color;
-    el.classList.add('show');
-    sc.classList.add('bump');
-    setTimeout(() => { el.classList.remove('show'); sc.classList.remove('bump'); }, 2500);
+  // ── Score pop (+N at the number) ──
+  function popScore(side, pts) {
+    const plus = document.getElementById(`plus-${side}`);
+    const num  = document.getElementById(`sc-${side}`);
+    // Position the badge over the score number (relative to #score-bug)
+    const bug = document.getElementById('score-bug').getBoundingClientRect();
+    const n = num.getBoundingClientRect();
+    plus.style.left = ((n.left - bug.left) + n.width / 2) + 'px';
+    plus.style.top  = ((n.top  - bug.top) - 6) + 'px';
+    plus.textContent = `+${pts}`;
+    plus.classList.remove('go'); void plus.offsetWidth; plus.classList.add('go');
+    num.classList.remove('bump'); void num.offsetWidth; num.classList.add('bump');
   }
 
+  // ── Timeout callout ──
   function showTO(name, color) {
-    const el = document.getElementById('timeout-overlay');
-    document.getElementById('to-team-name').textContent = name;
-    document.getElementById('to-team-name').style.color = color;
+    const el = document.getElementById('to-overlay');
+    const nm = document.getElementById('to-team-name');
+    nm.textContent = name; nm.style.color = color;
     document.getElementById('to-bar').style.background = color;
     el.classList.add('visible');
-    setTimeout(() => el.classList.remove('visible'), 5000);
+    clearTimeout(showTO._t);
+    showTO._t = setTimeout(() => el.classList.remove('visible'), 5000);
   }
 
-  // --- 6. Firebase Logo Sync ---
+  // ── Firebase league branding sync ──
+  fbDb.ref('overlay_config/league').on('value', snap => {
+    const v = snap.val() || {};
+    const seal = document.getElementById('lg-seal');
+    const img  = document.getElementById('lg-logo');
+    if (v.logo && v.logo.trim() !== '') { img.src = v.logo; seal.classList.add('has-logo'); }
+    else { seal.classList.remove('has-logo'); img.removeAttribute('src'); }
+    setLeagueLine('lg-l1', v.line1 != null ? v.line1 : 'BASKETBALL');
+    setLeagueLine('lg-l2', v.line2 != null ? v.line2 : 'THAI LEAGUE');
+    setLeagueLine('lg-yr', v.year  != null ? v.year  : '2026');
+  });
+  function setLeagueLine(id, txt) {
+    const el = document.getElementById(id);
+    el.textContent = txt || '';
+    el.style.display = (txt && String(txt).trim() !== '') ? '' : 'none';
+  }
+
+  // ── Firebase logo sync ──
   fbDb.ref('player_data/teamA/logo').on('value', snap => updateLogo('a', snap.val()));
   fbDb.ref('player_data/teamB/logo').on('value', snap => updateLogo('b', snap.val()));
-
   function updateLogo(id, url) {
     const img = document.getElementById(`logo-img-${id}`);
-    const ph = document.getElementById(`logo-ph-${id}`);
+    const ph  = document.getElementById(`logo-ph-${id}`);
     if (url && url.trim() !== "") {
       img.src = url;
       img.onload = () => { img.classList.add('show'); ph.classList.add('hide'); };
     } else {
-      img.classList.remove('show');
-      ph.classList.remove('hide');
+      img.classList.remove('show'); ph.classList.remove('hide');
     }
   }
 
-  // --- 7. Init Socket ---
+  // ── Socket ──
   function init() {
     const script = document.createElement('script');
     script.src = `${SERVER_URL}/socket.io/socket.io.js`;
-    script.onload = () => {
-      const socket = io(SERVER_URL, { reconnection: true });
-      socket.on('stateUpdate', render);
-    };
+    script.onload = () => { const socket = io(SERVER_URL, { reconnection: true }); socket.on('stateUpdate', render); };
     document.head.appendChild(script);
   }
   init();

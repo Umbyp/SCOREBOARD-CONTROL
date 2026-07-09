@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import { ref, onValue, update } from "firebase/database";
+import { c, font, r, overline, btn } from "./theme";
 
 // ── Match Schedule ────────────────────────────────────────────────────────────
 const MATCH_SCHEDULE = {
@@ -101,7 +102,7 @@ function Toggle({ value, onChange }) {
       onClick={() => onChange(!value)}
       style={{
         width: 38, height: 21, borderRadius: 11, border: "none",
-        background: value ? "#00E87A" : "rgba(255,255,255,0.12)",
+        background: value ? c.live : "rgba(255,255,255,0.14)",
         position: "relative", cursor: "pointer", flexShrink: 0,
         transition: "background 0.2s",
       }}
@@ -380,47 +381,48 @@ export default function TournamentBridge({ state, send }) {
   const sched  = selectedId ? MATCH_SCHEDULE[selectedId] || {} : {};
   const qLabel = state.quarter > 4 ? `OT${state.quarter - 4}` : `Q${state.quarter}`;
 
-  const S = (s) => ({ fontFamily: "'Bebas Neue',Impact,sans-serif", ...s });
+  const S = (s) => ({ fontFamily: font.label, fontWeight: 600, ...s });
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={{
-      background: "linear-gradient(160deg,#0d0d20,#08080f)",
-      border: "1px solid rgba(255,215,0,0.18)",
-      borderRadius: 16, overflow: "hidden", marginBottom: 12,
+      background: c.surface,
+      border: `1px solid ${c.line}`,
+      borderRadius: r.lg, overflow: "hidden", marginBottom: 12,
     }}>
+      <style>{`@keyframes tb-pulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
 
       {/* ── Header ── */}
       <div
         onClick={() => setIsOpen(o => !o)}
         style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "10px 16px", cursor: "pointer",
-          background: "rgba(255,215,0,0.05)",
-          borderBottom: isOpen ? "1px solid rgba(255,215,0,0.12)" : "none",
+          padding: "12px 16px", cursor: "pointer",
+          background: c.surface2,
+          borderBottom: isOpen ? `1px solid ${c.line}` : "none",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🏆</span>
-          <span style={{ ...S({ fontSize: 15, letterSpacing: "0.2em" }), color: "#FFD700" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c.gold} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4h12v3a4 4 0 0 1-8 0V4M6 4H4v2a3 3 0 0 0 2 2.8M18 4h2v2a3 3 0 0 1-2 2.8M9 15h6M10 15v-3.2M14 15v-3.2M8 20h8"/></svg>
+          <span style={{ ...overline({ fontSize: 12, color: c.gold, letterSpacing: "0.2em" }) }}>
             TOURNAMENT SYNC
           </span>
           {selectedMatch && (
             <span style={{
-              padding: "2px 8px", borderRadius: 20,
-              background: "rgba(255,215,0,0.1)", border: "1px solid rgba(255,215,0,0.3)",
-              ...S({ fontSize: 10, letterSpacing: "0.1em" }), color: "#FFD700",
+              padding: "2px 9px", borderRadius: r.pill,
+              background: c.goldDim, border: `1px solid ${c.gold}3A`,
+              ...S({ fontSize: 11, color: c.gold }),
             }}>
               #{sched.matchNo || selectedMatch.id}
             </span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {saveStatus === "saved" && <span style={{ ...S({ fontSize: 11 }), color: "#00E87A" }}>✅ จบเกมเรียบร้อย</span>}
-          {saveStatus === "live"  && <span style={{ ...S({ fontSize: 11 }), color: "#FFA500" }}>📡 อัปเดตสดแล้ว</span>}
-          {saveStatus === "saving"&& <span style={{ ...S({ fontSize: 11 }), color: "#888" }}>⏳ กำลังบันทึก…</span>}
-          {saveStatus === "error" && <span style={{ ...S({ fontSize: 11 }), color: "#FF5555" }}>❌ ผิดพลาด</span>}
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {saveStatus === "saved" && <span style={{ ...S({ fontSize: 12, color: c.live }) }}>จบเกมเรียบร้อย</span>}
+          {saveStatus === "live"  && <span style={{ ...S({ fontSize: 12, color: c.warn }) }}>อัปเดตสดแล้ว</span>}
+          {saveStatus === "saving"&& <span style={{ ...S({ fontSize: 12, color: c.mute }) }}>กำลังบันทึก…</span>}
+          {saveStatus === "error" && <span style={{ ...S({ fontSize: 12, color: c.danger }) }}>ผิดพลาด</span>}
+          <span style={{ color: c.mute, fontSize: 11 }}>{isOpen ? "▲" : "▼"}</span>
         </div>
       </div>
 
@@ -431,12 +433,12 @@ export default function TournamentBridge({ state, send }) {
               SECTION 1: AUTO FEATURES (ปุ่ม toggle)
           ════════════════════════════════════════════════ */}
           <div style={{
-            background: "rgba(0,0,0,0.3)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            borderRadius: 12, padding: "10px 14px",
+            background: c.bgInset,
+            border: `1px solid ${c.line}`,
+            borderRadius: r.md, padding: "10px 14px",
           }}>
-            <div style={{ ...S({ fontSize: 9, letterSpacing: "0.45em" }), color: "rgba(255,255,255,0.25)", marginBottom: 10 }}>
-              ⚙️ AUTO FEATURES
+            <div style={{ ...overline({ fontSize: 9.5, marginBottom: 10 }) }}>
+              AUTO FEATURES
             </div>
             {[
               {
@@ -444,31 +446,28 @@ export default function TournamentBridge({ state, send }) {
                 sublabel: "ป้องกัน operator ลืม reset ทุกครั้ง",
                 val:      autoShotReset,
                 set:      setAutoShotReset,
-                color:    "#00E87A",
               },
               {
                 label:    "Reset team fouls ทั้งสองทีม เมื่อขึ้น Q3",
                 sublabel: "FIBA กฎ: ฟาวล์ทีม reset ที่ครึ่งหลัง",
                 val:      autoFoulReset,
                 set:      setAutoFoulReset,
-                color:    "#FFA500",
               },
               {
                 label:    "Auto-stop นาฬิกาเมื่อ Game Clock = 0",
                 sublabel: "หยุดทั้ง game clock และ shot clock อัตโนมัติ",
                 val:      autoStopClock,
                 set:      setAutoStopClock,
-                color:    "#FF6B35",
               },
-            ].map(({ label, sublabel, val, set, color }) => (
+            ].map(({ label, sublabel, val, set }, i, arr) => (
               <div key={label} style={{
                 display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 0",
-                borderBottom: "1px solid rgba(255,255,255,0.04)",
+                padding: "9px 0",
+                borderBottom: i < arr.length - 1 ? `1px solid ${c.lineSoft}` : "none",
               }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: val ? "rgba(255,255,255,0.8)" : "rgba(255,255,255,0.3)", marginBottom: 2, lineHeight: 1.3 }}>{label}</div>
-                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>{sublabel}</div>
+                  <div style={{ fontFamily: font.body, fontSize: 13, color: val ? c.text : c.mute, marginBottom: 2, lineHeight: 1.3 }}>{label}</div>
+                  <div style={{ fontFamily: font.body, fontSize: 11, color: c.faint }}>{sublabel}</div>
                 </div>
                 <Toggle value={val} onChange={set} />
               </div>
@@ -479,19 +478,19 @@ export default function TournamentBridge({ state, send }) {
               SECTION 2: เลือกนัดแข่งขัน
           ════════════════════════════════════════════════ */}
           <div>
-            <div style={{ ...S({ fontSize: 10, letterSpacing: "0.4em" }), color: "rgba(255,255,255,0.3)", marginBottom: 6 }}>
+            <div style={{ ...overline({ fontSize: 10, marginBottom: 7 }) }}>
               เลือกนัดแข่งขัน
             </div>
             <select
               value={selectedId || ""}
               onChange={e => handleSelectMatch(Number(e.target.value))}
               style={{
-                width: "100%", background: "#0a0a15",
-                border: "1px solid rgba(255,215,0,0.25)",
-                borderRadius: 10,
-                color: selectedId ? "#FFD700" : "rgba(255,255,255,0.4)",
-                padding: "10px 12px",
-                ...S({ fontSize: 13, letterSpacing: "0.05em" }),
+                width: "100%", background: c.bgInset,
+                border: `1px solid ${selectedId ? c.gold + "3A" : c.line}`,
+                borderRadius: r.md,
+                color: selectedId ? c.gold : c.dim,
+                padding: "11px 12px",
+                ...S({ fontSize: 14 }),
                 outline: "none", cursor: "pointer",
               }}
             >
@@ -517,11 +516,11 @@ export default function TournamentBridge({ state, send }) {
                   SECTION 3: ตรวจสอบชื่อทีม
               ════════════════════════════════════════════════ */}
               <div style={{
-                background: "rgba(0,0,0,0.3)",
-                border: `1px solid ${teamMismatch ? "rgba(255,85,85,0.4)" : "rgba(0,232,122,0.25)"}`,
-                borderRadius: 12, padding: "12px 14px",
+                background: c.bgInset,
+                border: `1px solid ${teamMismatch ? "rgba(222,91,87,0.4)" : "rgba(63,185,139,0.28)"}`,
+                borderRadius: r.md, padding: "12px 14px",
               }}>
-                <div style={{ ...S({ fontSize: 10, letterSpacing: "0.35em" }), color: "rgba(255,255,255,0.3)", marginBottom: 8 }}>
+                <div style={{ ...overline({ fontSize: 10, marginBottom: 9 }) }}>
                   ตรวจสอบทีม
                 </div>
                 {[
@@ -540,13 +539,13 @@ export default function TournamentBridge({ state, send }) {
                 ].map(({ label, tournament, scoreboard, color }) => {
                   const matched = tournament.trim().toUpperCase() === scoreboard.trim().toUpperCase();
                   return (
-                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                      <span style={{ ...S({ fontSize: 9, letterSpacing: "0.2em" }), color: "rgba(255,255,255,0.25)", width: 55 }}>
+                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                      <span style={{ ...overline({ fontSize: 9, width: 56 }) }}>
                         {label}
                       </span>
-                      <span style={{ ...S({ fontSize: 12 }), color, flex: 1 }}>{tournament}</span>
-                      <span style={{ fontSize: 14 }}>{matched ? "✅" : "⚠️"}</span>
-                      <span style={{ ...S({ fontSize: 12 }), color: matched ? "#00E87A" : "#FF5555", flex: 1, textAlign: "right" }}>
+                      <span style={{ ...S({ fontSize: 13 }), color, flex: 1 }}>{tournament}</span>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: matched ? c.live : c.danger, flexShrink: 0 }} />
+                      <span style={{ ...S({ fontSize: 13 }), color: matched ? c.live : c.danger, flex: 1, textAlign: "right" }}>
                         {scoreboard}
                       </span>
                     </div>
@@ -556,15 +555,9 @@ export default function TournamentBridge({ state, send }) {
                 {teamMismatch && (
                   <button
                     onClick={() => handleSelectMatch(selectedId)}
-                    style={{
-                      marginTop: 8, width: "100%", padding: "8px 0",
-                      background: "rgba(255,165,0,0.12)",
-                      border: "1px solid rgba(255,165,0,0.35)",
-                      borderRadius: 8, color: "#FFA500", cursor: "pointer",
-                      ...S({ fontSize: 12, letterSpacing: "0.15em" }),
-                    }}
+                    style={{ ...btn("warn", { active: true }), marginTop: 9, width: "100%", padding: "9px 0", fontSize: 13, letterSpacing: "0.08em" }}
                   >
-                    🔄 บังคับเปลี่ยนชื่อทีมตาม TOURNAMENT
+                    บังคับเปลี่ยนชื่อทีมตาม TOURNAMENT
                   </button>
                 )}
               </div>
@@ -573,32 +566,32 @@ export default function TournamentBridge({ state, send }) {
                   SECTION 4: QUICK GAME CONTROLS (ของใหม่)
               ════════════════════════════════════════════════ */}
               <div style={{
-                background: "rgba(0,0,0,0.3)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12, padding: "12px 14px",
+                background: c.bgInset,
+                border: `1px solid ${c.line}`,
+                borderRadius: r.md, padding: "12px 14px",
               }}>
-                <div style={{ ...S({ fontSize: 9, letterSpacing: "0.45em" }), color: "rgba(255,255,255,0.25)", marginBottom: 10 }}>
-                  🎮 QUICK CONTROLS
+                <div style={{ ...overline({ fontSize: 9.5, marginBottom: 10 }) }}>
+                  QUICK CONTROLS
                 </div>
 
                 {/* สถานะปัจจุบัน */}
                 <div style={{
                   display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 12px", marginBottom: 10,
-                  background: "rgba(0,0,0,0.35)", borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  padding: "9px 12px", marginBottom: 10,
+                  background: c.surface, borderRadius: r.sm,
+                  border: `1px solid ${c.line}`,
                 }}>
-                  <span style={{ ...S({ fontSize: 20 }), color: "#FFD700" }}>{qLabel}</span>
-                  <div style={{ width: 1, height: 18, background: "rgba(255,255,255,0.1)" }} />
+                  <span style={{ fontFamily: font.num, fontWeight: 700, fontSize: 20, color: c.gold }}>{qLabel}</span>
+                  <div style={{ width: 1, height: 18, background: c.line }} />
                   <span style={{
-                    ...S({ fontSize: 13 }),
-                    color: state.isRunning ? "#00E87A" : "rgba(255,255,255,0.35)",
+                    ...overline({ fontSize: 11, letterSpacing: "0.14em" }),
+                    color: state.isRunning ? c.live : c.mute,
                   }}>
-                    {state.isRunning ? "▶ LIVE" : "⏸ PAUSED"}
+                    {state.isRunning ? "LIVE" : "PAUSED"}
                   </span>
-                  <span style={{ ...S({ fontSize: 18 }), color: "rgba(255,255,255,0.6)", marginLeft: "auto" }}>
+                  <span style={{ fontFamily: font.num, fontWeight: 700, fontSize: 18, color: c.dim, marginLeft: "auto" }}>
                     {state.teamA.score}
-                    <span style={{ color: "rgba(255,255,255,0.2)", margin: "0 5px" }}>—</span>
+                    <span style={{ color: c.faint, margin: "0 6px" }}>—</span>
                     {state.teamB.score}
                   </span>
                 </div>
@@ -610,18 +603,15 @@ export default function TournamentBridge({ state, send }) {
                     onClick={handleEndQuarter}
                     disabled={state.quarter >= 5}
                     style={{
-                      padding: "13px 0", borderRadius: 10,
-                      border: "1.5px solid rgba(255,215,0,0.4)",
-                      background: state.quarter >= 5
-                        ? "rgba(255,255,255,0.03)"
-                        : "rgba(255,215,0,0.1)",
-                      color: state.quarter >= 5 ? "rgba(255,255,255,0.15)" : "#FFD700",
+                      ...btn("gold", { active: state.quarter < 5 }),
+                      padding: "12px 0",
+                      color: state.quarter >= 5 ? c.faint : c.gold,
                       cursor: state.quarter >= 5 ? "not-allowed" : "pointer",
-                      ...S({ fontSize: 13, letterSpacing: "0.1em" }),
+                      ...S({ fontSize: 14, letterSpacing: "0.06em" }),
                     }}
                   >
-                    ⏭ จบ {qLabel}
-                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, fontFamily: "system-ui", letterSpacing: 0 }}>
+                    จบ {qLabel}
+                    <div style={{ fontSize: 11, color: c.mute, marginTop: 3, fontFamily: font.body, letterSpacing: 0, fontWeight: 400 }}>
                       Stop + ขึ้น {state.quarter < 4 ? `Q${state.quarter + 1}` : state.quarter === 4 ? "OT" : "—"}
                     </div>
                   </button>
@@ -631,18 +621,15 @@ export default function TournamentBridge({ state, send }) {
                     onClick={handleUndo}
                     disabled={scoreHistory.length === 0}
                     style={{
-                      padding: "13px 0", borderRadius: 10,
-                      border: `1.5px solid ${scoreHistory.length > 0 ? "rgba(255,165,0,0.4)" : "rgba(255,255,255,0.07)"}`,
-                      background: scoreHistory.length > 0
-                        ? "rgba(255,165,0,0.1)"
-                        : "rgba(255,255,255,0.03)",
-                      color: scoreHistory.length > 0 ? "#FFA500" : "rgba(255,255,255,0.15)",
+                      ...btn("warn", { active: scoreHistory.length > 0 }),
+                      padding: "12px 0",
+                      color: scoreHistory.length > 0 ? c.warn : c.faint,
                       cursor: scoreHistory.length > 0 ? "pointer" : "not-allowed",
-                      ...S({ fontSize: 13, letterSpacing: "0.1em" }),
+                      ...S({ fontSize: 14, letterSpacing: "0.06em" }),
                     }}
                   >
-                    ↩ UNDO {scoreHistory.length > 0 ? `(${scoreHistory.length})` : ""}
-                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", marginTop: 2, fontFamily: "system-ui", letterSpacing: 0 }}>
+                    UNDO {scoreHistory.length > 0 ? `(${scoreHistory.length})` : ""}
+                    <div style={{ fontSize: 11, color: c.mute, marginTop: 3, fontFamily: font.body, letterSpacing: 0, fontWeight: 400 }}>
                       {scoreHistory.length > 0
                         ? scoreHistory[scoreHistory.length - 1].label
                         : "ไม่มีประวัติ"}
@@ -655,15 +642,13 @@ export default function TournamentBridge({ state, send }) {
                   <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
                     {scoreHistory.slice(-6).map((h, i, arr) => (
                       <span key={i} style={{
-                        padding: "2px 8px",
-                        background: i === arr.length - 1
-                          ? "rgba(255,165,0,0.15)"
-                          : "rgba(255,255,255,0.04)",
-                        border: `1px solid ${i === arr.length - 1 ? "rgba(255,165,0,0.35)" : "rgba(255,255,255,0.07)"}`,
-                        borderRadius: 6,
-                        fontSize: 10,
-                        color: i === arr.length - 1 ? "#FFA500" : "rgba(255,255,255,0.2)",
-                        fontFamily: "monospace",
+                        padding: "3px 9px",
+                        background: i === arr.length - 1 ? c.warnDim : c.surface,
+                        border: `1px solid ${i === arr.length - 1 ? "rgba(221,161,63,0.32)" : c.line}`,
+                        borderRadius: r.sm,
+                        fontSize: 11,
+                        color: i === arr.length - 1 ? c.warn : c.mute,
+                        fontFamily: font.num, fontVariantNumeric: "tabular-nums",
                       }}>
                         {h.label}
                       </span>
@@ -679,24 +664,23 @@ export default function TournamentBridge({ state, send }) {
 
                 {/* Auto-sync indicator */}
                 <div style={{
-                  display: "flex", alignItems: "center", gap: 10, padding: "11px 14px",
-                  borderRadius: 12,
-                  background: "rgba(0,232,122,0.07)",
-                  border: "1px solid rgba(0,232,122,0.25)",
+                  display: "flex", alignItems: "center", gap: 11, padding: "11px 14px",
+                  borderRadius: r.md,
+                  background: c.liveDim,
+                  border: "1px solid rgba(63,185,139,0.28)",
                 }}>
                   <div style={{
-                    width: 10, height: 10, borderRadius: "50%",
-                    background: "#00E87A", boxShadow: "0 0 8px #00E87A",
-                    flexShrink: 0, animation: "pulse 2s infinite",
+                    width: 9, height: 9, borderRadius: "50%",
+                    background: c.live, flexShrink: 0, animation: "tb-pulse 2s infinite",
                   }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ ...S({ fontSize: 13, letterSpacing: "0.1em" }), color: "#00E87A" }}>
+                    <div style={{ ...overline({ fontSize: 11, color: c.live, letterSpacing: "0.16em" }) }}>
                       AUTO-SYNC ACTIVE
                     </div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
+                    <div style={{ fontFamily: font.body, fontSize: 12, color: c.dim, marginTop: 2 }}>
                       คะแนนปัจจุบัน:&nbsp;
                       <span style={{ color: state.teamA.color, fontWeight: 700 }}>{homeScore ?? "—"}</span>
-                      <span style={{ color: "rgba(255,255,255,0.2)", margin: "0 4px" }}>—</span>
+                      <span style={{ color: c.faint, margin: "0 5px" }}>—</span>
                       <span style={{ color: state.teamB.color, fontWeight: 700 }}>{awayScore ?? "—"}</span>
                       &nbsp;· sync อัตโนมัติทุกครั้งที่มีแต้ม
                     </div>
@@ -714,20 +698,16 @@ export default function TournamentBridge({ state, send }) {
                   }}
                   disabled={homeScore === null || saveStatus === "saving" || selectedMatch.played}
                   style={{
-                    padding: "16px 0", borderRadius: 12,
-                    border: `2px solid ${selectedMatch.played ? "rgba(255,255,255,0.08)" : "rgba(255,55,55,0.45)"}`,
-                    background: selectedMatch.played
-                      ? "rgba(255,255,255,0.03)"
-                      : "rgba(255,55,55,0.13)",
-                    color: selectedMatch.played ? "rgba(255,255,255,0.2)" : "#FF5555",
+                    ...btn(selectedMatch.played ? "neutral" : "danger", { active: !selectedMatch.played }),
+                    padding: "15px 0",
+                    color: selectedMatch.played ? c.faint : c.danger,
                     cursor: selectedMatch.played ? "not-allowed" : "pointer",
-                    ...S({ fontSize: 17, letterSpacing: "0.1em" }),
-                    transition: "all 0.2s",
+                    ...S({ fontSize: 16, letterSpacing: "0.08em" }),
                   }}
                 >
                   {selectedMatch.played
-                    ? "✅ แมทช์นี้จบการแข่งขันไปแล้ว"
-                    : "🏁 ยืนยันจบการแข่งขัน (FINAL)"}
+                    ? "แมทช์นี้จบการแข่งขันไปแล้ว"
+                    : "ยืนยันจบการแข่งขัน · FINAL"}
                 </button>
               </div>
 
@@ -736,25 +716,25 @@ export default function TournamentBridge({ state, send }) {
               ════════════════════════════════════════════════ */}
               {autoEvents.length > 0 && (
                 <div style={{
-                  background: "rgba(0,0,0,0.22)",
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  borderRadius: 10, padding: "10px 12px",
+                  background: c.bgInset,
+                  border: `1px solid ${c.line}`,
+                  borderRadius: r.md, padding: "10px 12px",
                 }}>
-                  <div style={{ ...S({ fontSize: 9, letterSpacing: "0.4em" }), color: "rgba(255,255,255,0.18)", marginBottom: 6 }}>
-                    📋 AUTO LOG
+                  <div style={{ ...overline({ fontSize: 9, marginBottom: 7 }) }}>
+                    AUTO LOG
                   </div>
                   {[...autoEvents].reverse().map((ev, i) => (
                     <div key={i} style={{
-                      display: "flex", gap: 8, marginBottom: 4,
-                      opacity: Math.max(0.2, 1 - i * 0.18),
+                      display: "flex", gap: 9, marginBottom: 5,
+                      opacity: Math.max(0.28, 1 - i * 0.16),
                     }}>
                       <span style={{
-                        fontFamily: "monospace", fontSize: 9,
-                        color: "rgba(255,255,255,0.2)", flexShrink: 0, paddingTop: 1,
+                        fontFamily: font.num, fontSize: 11, fontVariantNumeric: "tabular-nums",
+                        color: c.faint, flexShrink: 0, paddingTop: 1,
                       }}>
                         {ev.time}
                       </span>
-                      <span style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
+                      <span style={{ fontFamily: font.body, fontSize: 12.5, color: c.dim, lineHeight: 1.4 }}>
                         {ev.msg}
                       </span>
                     </div>
