@@ -30,8 +30,8 @@ export const c = {
   warnDim:   "rgba(221,161,63,0.14)",
   danger:    "#DE5B57",   // stop / destructive
   dangerDim: "rgba(222,91,87,0.13)",
-  gold:      "#D8B65C",   // clock / period emphasis
-  goldDim:   "rgba(216,182,92,0.12)",
+  gold:      "#E4BF55",   // clock / period emphasis — matches the overlay's league gold
+  goldDim:   "rgba(228,191,85,0.12)",
 };
 
 // Default team identity colors (slightly softened from neon)

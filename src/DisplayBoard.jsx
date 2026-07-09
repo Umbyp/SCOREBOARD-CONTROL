@@ -6,10 +6,42 @@ import { ref, onValue } from "firebase/database";
 import { c as tok, font, r, overline, btn, FONT_IMPORT } from "./theme";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
-const DB_PATH    = "player_data";
+const DB_PATH      = "player_data";
+const LEAGUE_PATH  = "overlay_config/league";
+const LEAGUE_DEFAULT = { logo: "", line1: "BASKETBALL", line2: "THAI LEAGUE", year: "2026" };
 
-// ─── Accent colors used on the arena face ─────────────────────
-const GOLD = "#D8B65C", LIVE = "#3FB98B", RED = "#DE5B57";
+// ─── Accent colors used on the arena face (single source: theme.js) ──
+const GOLD = tok.gold, LIVE = tok.live, RED = tok.danger;
+
+// ─── Minimal league seal icon (matches the overlay's mark) ────
+function LeagueSeal({ size = 22 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="1.4">
+      <circle cx="12" cy="12" r="9.4" />
+      <path d="M12 2.6v18.8M2.6 12h18.8M5 5c3.5 2.5 3.5 11.5 0 14M19 5c-3.5 2.5-3.5 11.5 0 14" strokeOpacity="0.75" />
+    </svg>
+  );
+}
+
+// ─── League branding badge (top bar) ───────────────────────────
+function LeagueBadge({ league }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <div style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+        border: league.logo ? "none" : `1.5px solid ${GOLD}`, background: league.logo ? "transparent" : "rgba(228,191,85,0.06)", overflow: "hidden" }}>
+        {league.logo
+          ? <img src={league.logo} alt="" style={{ width: 26, height: 26, objectFit: "contain" }} onError={e => e.target.style.display = "none"} />
+          : <LeagueSeal size={15} />}
+      </div>
+      <div style={{ lineHeight: 1.15 }}>
+        <div style={{ fontFamily: font.label, fontWeight: 700, fontSize: 11, letterSpacing: "0.1em", color: "rgba(255,255,255,0.85)" }}>
+          {league.line1}{league.line2 ? ` · ${league.line2}` : ""}
+        </div>
+        {league.year && <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: 12, color: GOLD, marginTop: 1 }}>{league.year}</div>}
+      </div>
+    </div>
+  );
+}
 
 // ─── THEMES CONFIG (refined, lower glare) ─────────────────────
 const THEMES = {
@@ -198,6 +230,7 @@ export default function DisplayBoard({ onBack }) {
   const [themeId, setThemeId] = useState(() => localStorage.getItem("arena_theme") || "dark");
   const [customBg, setCustomBg] = useState(() => localStorage.getItem("arena_custom_bg") || "");
   const currentTheme = THEMES[themeId] || THEMES.dark;
+  const [league, setLeague] = useState(LEAGUE_DEFAULT);
 
   const prevScoreA = useRef(0);
   const prevScoreB = useRef(0);
@@ -209,7 +242,8 @@ export default function DisplayBoard({ onBack }) {
     const uA = onValue(ref(db, `${DB_PATH}/teamA`), s => setFbA(parse(s.val(), "HOME")));
     const uB = onValue(ref(db, `${DB_PATH}/teamB`), s => setFbB(parse(s.val(), "AWAY")));
     const uConn = onValue(ref(db, ".info/connected"), s => setDbConnected(!!s.val()));
-    return () => { uA(); uB(); uConn(); };
+    const uL = onValue(ref(db, LEAGUE_PATH), s => { const v = s.val(); if (v) setLeague({ ...LEAGUE_DEFAULT, ...v }); });
+    return () => { uA(); uB(); uConn(); uL(); };
   }, []);
 
   useEffect(() => {
@@ -268,7 +302,7 @@ export default function DisplayBoard({ onBack }) {
             {customBg && <button onClick={() => { setCustomBg(""); localStorage.removeItem("arena_custom_bg"); }} style={{ background: "none", border: "none", color: RED, cursor: "pointer", fontSize: 13 }}>✕</button>}
           </div>
         </div>
-        <div style={{ ...overline({ fontSize: 13, color: "rgba(255,255,255,0.32)", letterSpacing: "0.32em" }) }}>ARENA DISPLAY</div>
+        <LeagueBadge league={league} />
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: r.pill,
           background: fbConnected ? tok.liveDim : tok.dangerDim, ...overline({ fontSize: 10.5, color: fbConnected ? LIVE : RED, letterSpacing: "0.12em" }) }}>
           <div style={{ width: 6, height: 6, borderRadius: "50%", background: fbConnected ? LIVE : RED }} />
@@ -307,6 +341,7 @@ export default function DisplayBoard({ onBack }) {
           <div style={{ display: "flex", width: "100%", alignItems: "center", position: "relative", padding: "10px 0" }}>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 20px" }}>
               <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 34, color: teamA.color, letterSpacing: "0.03em", marginBottom: 6 }}>{teamA.name}</div>
+              <div style={{ width: 46, height: 3, background: GOLD, transform: "skewX(-16deg)", marginBottom: 10, opacity: 0.8 }} />
               <div style={{ position: "relative" }}>
                 {flashA && <div style={{ position: "absolute", top: -20, left: "50%", fontFamily: font.num, fontSize: 40, fontWeight: 700, color: teamA.color, animation: "flash-up 2s ease forwards", pointerEvents: "none" }}>{flashA}</div>}
                 <div style={{ fontFamily: font.num, fontSize: "clamp(70px,10vw,130px)", fontWeight: 700, lineHeight: 1, color: teamA.color, fontVariantNumeric: "tabular-nums", animation: flashA ? "score-pop .3s ease" : "none" }}>{teamA.score}</div>
@@ -321,6 +356,7 @@ export default function DisplayBoard({ onBack }) {
 
             <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 20px" }}>
               <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 34, color: teamB.color, letterSpacing: "0.03em", marginBottom: 6 }}>{teamB.name}</div>
+              <div style={{ width: 46, height: 3, background: GOLD, transform: "skewX(-16deg)", marginBottom: 10, opacity: 0.8 }} />
               <div style={{ position: "relative" }}>
                 {flashB && <div style={{ position: "absolute", top: -20, left: "50%", fontFamily: font.num, fontSize: 40, fontWeight: 700, color: teamB.color, animation: "flash-up 2s ease forwards", pointerEvents: "none" }}>{flashB}</div>}
                 <div style={{ fontFamily: font.num, fontSize: "clamp(70px,10vw,130px)", fontWeight: 700, lineHeight: 1, color: teamB.color, fontVariantNumeric: "tabular-nums", animation: flashB ? "score-pop .3s ease" : "none" }}>{teamB.score}</div>

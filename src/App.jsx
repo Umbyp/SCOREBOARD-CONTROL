@@ -439,6 +439,17 @@ function PvLogo({ logo, color, letter }) {
   );
 }
 
+// ─── Score-pop tracker: fires a {pts, key} pulse whenever `score` increases ──
+function useScorePop(score) {
+  const prev = useRef(score);
+  const [pop, setPop] = useState(null);
+  useEffect(() => {
+    if (score > prev.current) setPop({ pts: score - prev.current, key: Date.now() });
+    prev.current = score;
+  }, [score]);
+  return pop;
+}
+
 // ─── Overlay Preview (mirrors public/overlay.html) ────────────
 function OverlayPreview({ state, logoA, logoB, league }) {
   const { teamA, teamB, quarter, clockTenths, shotClockTenths, possession, jumpBall } = state;
@@ -451,11 +462,30 @@ function OverlayPreview({ state, logoA, logoB, league }) {
   const SK = "skewX(-13deg)", SKr = "skewX(13deg)";
   const H = 62;
 
-  const scoreCell = (val, color) => (
-    <div style={{ width: 60, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0C0D11" }}>
-      <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: 30, color: "#fff", fontVariantNumeric: "tabular-nums" }}>{val}</div>
-    </div>
-  );
+  const popA = useScorePop(teamA.score);
+  const popB = useScorePop(teamB.score);
+
+  // Pop badges live outside the overflow:hidden bar so they can rise freely;
+  // position is measured against the actual score number each time it pops.
+  const containerRef = useRef(null);
+  const scoreARef = useRef(null);
+  const scoreBRef = useRef(null);
+  const plusARef = useRef(null);
+  const plusBRef = useRef(null);
+
+  const firePop = (pop, numRef, plusRef) => {
+    if (!pop || !numRef.current || !plusRef.current || !containerRef.current) return;
+    const n = numRef.current.getBoundingClientRect();
+    const cont = containerRef.current.getBoundingClientRect();
+    const el = plusRef.current;
+    el.style.left = (n.left - cont.left + n.width / 2) + "px";
+    el.style.top = (n.top - cont.top - 2) + "px";
+    el.textContent = `+${pop.pts}`;
+    el.classList.remove("go"); void el.offsetWidth; el.classList.add("go");
+  };
+  useEffect(() => { firePop(popA, scoreARef, plusARef); }, [popA]);
+  useEffect(() => { firePop(popB, scoreBRef, plusBRef); }, [popB]);
+
   const infoCell = (label, value, color, w, urgent) => (
     <div style={{ width: w, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", borderLeft: `1px solid ${c.line}` }}>
       <div style={{ fontFamily: font.label, fontWeight: 700, fontSize: 7.5, letterSpacing: "0.14em", color: urgent ? c.danger : c.mute, marginBottom: 1 }}>{label}</div>
@@ -464,7 +494,27 @@ function OverlayPreview({ state, logoA, logoB, league }) {
   );
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", padding: "6px 0" }}>
+    <div ref={containerRef} style={{ display: "flex", justifyContent: "center", padding: "6px 0", position: "relative" }}>
+      <style>{`
+        @keyframes ov-plusrise {
+          0%   { opacity: 0; transform: translate(-50%, 10px) scale(0.6); }
+          18%  { opacity: 1; transform: translate(-50%, -4px) scale(1.2); }
+          55%  { opacity: 1; transform: translate(-50%, -22px) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -42px) scale(0.95); }
+        }
+        .ov-plus {
+          position: absolute; top: 0; left: 0; z-index: 20; pointer-events: none; opacity: 0;
+          font-family: ${font.num}; font-weight: 700; font-size: 17px;
+          color: ${GOLD}; text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 2px 8px rgba(0,0,0,0.6);
+        }
+        .ov-plus.go { animation: ov-plusrise 1.1s cubic-bezier(.2,.7,.3,1) forwards; }
+        @keyframes ov-bump { 0%{transform:scale(1)} 45%{transform:scale(1.22)} 100%{transform:scale(1)} }
+        .ov-bump { animation: ov-bump .34s cubic-bezier(.34,1.56,.64,1); }
+      `}</style>
+
+      <div ref={plusARef} className="ov-plus">+0</div>
+      <div ref={plusBRef} className="ov-plus">+0</div>
+
       <div style={{ display: "flex", height: H, background: "#0C0D11", borderRadius: 5,
         border: `1px solid ${c.lineStrong}`, boxShadow: shadow.md, overflow: "hidden" }}>
 
@@ -473,8 +523,8 @@ function OverlayPreview({ state, logoA, logoB, league }) {
 
         {/* home panel */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", padding: "0 20px 0 10px", minWidth: 104 }}>
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#f4f4f2,#e4e4e0)", transform: SK, zIndex: 0 }} />
-          <div style={{ position: "absolute", top: 0, bottom: 0, right: -2, width: 3, background: GOLD, transform: SK, zIndex: 2 }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(165deg,#ffffff 0%,#f2f2ef 55%,#e2e2dd 100%)", transform: SK, zIndex: 0 }} />
+          <div style={{ position: "absolute", top: 0, bottom: 0, right: -1.5, width: 3, background: GOLD, boxShadow: "0 0 6px rgba(228,191,85,0.5)", transform: SK, zIndex: 2 }} />
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: nameSize(teamA.name), color: "#17181d", lineHeight: 1, whiteSpace: "nowrap" }}>{teamA.name}</div>
             <PvDashes count={foulsA} bonus={bonusA} variant="home" />
@@ -482,16 +532,22 @@ function OverlayPreview({ state, logoA, logoB, league }) {
           </div>
         </div>
 
-        {scoreCell(teamA.score, teamA.color)}
+        <div style={{ width: 60, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0C0D11" }}>
+          <div ref={scoreARef} key={teamA.score} className="ov-bump" style={{ fontFamily: font.num, fontWeight: 700, fontSize: 30, color: "#fff", fontVariantNumeric: "tabular-nums" }}>{teamA.score}</div>
+        </div>
         <div style={{ width: 2.5, background: GOLD, transform: SK }} />
-        {scoreCell(teamB.score, teamB.color)}
+        <div style={{ width: 60, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#0C0D11" }}>
+          <div ref={scoreBRef} key={teamB.score} className="ov-bump" style={{ fontFamily: font.num, fontWeight: 700, fontSize: 30, color: "#fff", fontVariantNumeric: "tabular-nums" }}>{teamB.score}</div>
+        </div>
 
         {/* away panel */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 10px 0 20px", minWidth: 104 }}>
-          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(180deg, ${teamB.color}, color-mix(in srgb, ${teamB.color} 70%, #000))`, transform: SKr, zIndex: 0 }} />
-          <div style={{ position: "absolute", top: 0, bottom: 0, left: -2, width: 3, background: GOLD, transform: SKr, zIndex: 2 }} />
+          <div style={{ position: "absolute", inset: 0, background:
+            `radial-gradient(120% 160% at 25% -20%, rgba(255,255,255,0.22), transparent 55%), linear-gradient(165deg, ${teamB.color} 0%, color-mix(in srgb, ${teamB.color} 68%, #000) 65%, color-mix(in srgb, ${teamB.color} 45%, #000) 100%)`,
+            transform: SKr, zIndex: 0 }} />
+          <div style={{ position: "absolute", top: 0, bottom: 0, left: -1.5, width: 3, background: GOLD, boxShadow: "0 0 6px rgba(228,191,85,0.5)", transform: SKr, zIndex: 2 }} />
           <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: nameSize(teamB.name), color: GOLD, lineHeight: 1, whiteSpace: "nowrap" }}>{teamB.name}</div>
+            <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: nameSize(teamB.name), color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.35)", lineHeight: 1, whiteSpace: "nowrap" }}>{teamB.name}</div>
             <PvDashes count={foulsB} bonus={bonusB} variant="away" />
             {possession === "teamB" && <div style={{ height: 2, marginTop: 4, width: 28, borderRadius: 2, background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />}
           </div>

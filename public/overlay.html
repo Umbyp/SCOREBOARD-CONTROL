@@ -78,28 +78,32 @@
     #panel-a { padding-left: 18px; padding-right: 28px; margin-left: -10px; }
     #panel-b { padding-right: 18px; padding-left: 28px; margin-right: -10px; }
     .panel .pbg { position: absolute; inset: 0; z-index: 0; transform: skewX(var(--skew)); }
-    #panel-a .pbg { background: linear-gradient(180deg,#f4f4f2,#e4e4e0); }
-    #panel-b .pbg { background: linear-gradient(180deg, var(--tc), color-mix(in srgb, var(--tc) 74%, #000)); }
+    #panel-a .pbg { background: linear-gradient(165deg,#ffffff 0%,#f2f2ef 55%,#e2e2dd 100%); }
+    #panel-b .pbg {
+      background:
+        radial-gradient(120% 160% at 25% -20%, rgba(255,255,255,0.22), transparent 55%),
+        linear-gradient(165deg, var(--tc) 0%, color-mix(in srgb, var(--tc) 68%, #000) 65%, color-mix(in srgb, var(--tc) 45%, #000) 100%);
+    }
     /* gold seam line at the inner (center-facing) edge */
-    .panel .seam { position: absolute; top: 0; bottom: 0; width: 4px; background: var(--gold); z-index: 2; transform: skewX(var(--skew)); }
-    #panel-a .seam { right: -2px; }
-    #panel-b .seam { left: -2px; }
+    .panel .seam { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--gold); z-index: 2; transform: skewX(var(--skew)); box-shadow: 0 0 6px rgba(228,191,85,0.5); }
+    #panel-a .seam { right: -1.5px; }
+    #panel-b .seam { left: -1.5px; }
     .panel .inner { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; width: 100%; }
     #panel-b .inner { align-items: flex-end; }
 
-    .tname { font-weight: 700; font-size: 27px; line-height: 1; letter-spacing: 0.02em; white-space: nowrap; }
+    .tname { font-weight: 700; font-size: 27px; line-height: 1; letter-spacing: 0.02em; white-space: nowrap; transition: color .15s; }
     #panel-a .tname { color: #17181d; }
-    #panel-b .tname { color: var(--gold); }
-    .tname.poss { text-shadow: 0 0 1px currentColor; }
+    #panel-b .tname { color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.35); }
+    .tname.poss { text-shadow: 0 0 10px currentColor; }
 
     /* foul dashes */
     .dashes { display: flex; gap: 5px; margin-top: 7px; }
     #panel-b .dashes { flex-direction: row-reverse; }
-    .dash { width: 20px; height: 3px; border-radius: 2px; transition: background .25s; }
-    #panel-a .dash { background: rgba(0,0,0,0.16); }
+    .dash { width: 18px; height: 3px; border-radius: 2px; transition: background .25s; }
+    #panel-a .dash { background: rgba(0,0,0,0.15); }
     #panel-a .dash.on { background: #17181d; }
     #panel-a .dash.bonus { background: #C9483F; }
-    #panel-b .dash { background: rgba(255,255,255,0.28); }
+    #panel-b .dash { background: rgba(255,255,255,0.25); }
     #panel-b .dash.on { background: #fff; }
     #panel-b .dash.bonus { background: var(--gold); }
 
