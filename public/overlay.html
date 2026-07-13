@@ -257,6 +257,20 @@
 <script>
   const SERVER_URL = "https://scoreboard-control.onrender.com";
 
+  // Read-only viewer: which account's game to show, from ?u=<uid> in this
+  // overlay's own URL (the same uid the operator's "Copy Overlay Link" button
+  // bakes in). No login here — this page only ever reads/subscribes.
+  const UID = new URLSearchParams(window.location.search).get("u");
+  const userPath = (path) => `users/${UID}/${path}`;
+
+  if (!UID) {
+    document.getElementById("score-bug").innerHTML =
+      '<div style="font-family:\'Barlow Condensed\',sans-serif;color:#fff;background:rgba(12,13,17,0.9);' +
+      'padding:14px 22px;border-radius:8px;font-size:14px;letter-spacing:0.06em;">' +
+      'ลิงก์นี้ไม่มีรหัสเกม (?u=) — คัดลอกลิงก์ Overlay ใหม่จากหน้า Control</div>';
+    throw new Error("Missing ?u= game id");
+  }
+
   firebase.initializeApp({
     apiKey: "AIzaSyBUOuEb5MWvZg2BWka1RPn5Qy4WDSDSO3I",
     authDomain: "basketball-tournament-62372.firebaseapp.com",
@@ -377,7 +391,7 @@
   }
 
   // ── Firebase league branding sync ──
-  fbDb.ref('overlay_config/league').on('value', snap => {
+  fbDb.ref(userPath('overlay_config/league')).on('value', snap => {
     const v = snap.val() || {};
     const seal = document.getElementById('lg-seal');
     const img  = document.getElementById('lg-logo');
@@ -394,8 +408,8 @@
   }
 
   // ── Firebase logo sync ──
-  fbDb.ref('player_data/teamA/logo').on('value', snap => updateLogo('a', snap.val()));
-  fbDb.ref('player_data/teamB/logo').on('value', snap => updateLogo('b', snap.val()));
+  fbDb.ref(userPath('player_data/teamA/logo')).on('value', snap => updateLogo('a', snap.val()));
+  fbDb.ref(userPath('player_data/teamB/logo')).on('value', snap => updateLogo('b', snap.val()));
   function updateLogo(id, url) {
     const img = document.getElementById(`logo-img-${id}`);
     const ph  = document.getElementById(`logo-ph-${id}`);
@@ -407,11 +421,11 @@
     }
   }
 
-  // ── Socket ──
+  // ── Socket (read-only viewer: no auth token, just asks to join UID's room) ──
   function init() {
     const script = document.createElement('script');
     script.src = `${SERVER_URL}/socket.io/socket.io.js`;
-    script.onload = () => { const socket = io(SERVER_URL, { reconnection: true }); socket.on('stateUpdate', render); };
+    script.onload = () => { const socket = io(SERVER_URL, { reconnection: true, query: { uid: UID } }); socket.on('stateUpdate', render); };
     document.head.appendChild(script);
   }
   init();

@@ -119,7 +119,8 @@ function Toggle({ value, onChange }) {
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function TournamentBridge({ state, send }) {
+export default function TournamentBridge({ state, send, uid }) {
+  const TOURNAMENT_PATH = `users/${uid}/tournament_data`;
 
   // ── Existing state ────────────────────────────────────────────────────────
   const [appData,      setAppData]      = useState(null);
@@ -153,9 +154,9 @@ export default function TournamentBridge({ state, send }) {
 
   // ── Firebase subscription ─────────────────────────────────────────────────
   useEffect(() => {
-    const r = ref(db, "tournament_data");
+    const r = ref(db, TOURNAMENT_PATH);
     return onValue(r, snap => { const d = snap.val(); if (d) setAppData(d); });
-  }, []);
+  }, [uid]);
 
   // ── Helper: add to event log ──────────────────────────────────────────────
   const addEvent = (msg) => {
@@ -311,9 +312,9 @@ export default function TournamentBridge({ state, send }) {
       if (idx === -1) throw new Error("Match not found");
 
       await update(ref(db), {
-        [`tournament_data/${path}/${idx}/homeScore`]: homeScore,
-        [`tournament_data/${path}/${idx}/awayScore`]: awayScore,
-        [`tournament_data/${path}/${idx}/played`]:    isFinished,
+        [`${TOURNAMENT_PATH}/${path}/${idx}/homeScore`]: homeScore,
+        [`${TOURNAMENT_PATH}/${path}/${idx}/awayScore`]: awayScore,
+        [`${TOURNAMENT_PATH}/${path}/${idx}/played`]:    isFinished,
       });
 
       if (isFinished) {
