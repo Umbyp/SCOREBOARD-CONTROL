@@ -2,23 +2,21 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { db } from "./firebase";
-import { ref, onValue, set } from "firebase/database";
+import { ref, onValue, set, get, update } from "firebase/database";
 import TournamentBridge from "./TournamentBridge";
 import Home from "./Home";
-import DisplayBoard from "./DisplayBoard";
 import PlayerManager from "./PlayerManager";
 import { c, font, r, shadow, overline, panel, readout, btn, FONT_IMPORT } from "./theme";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
-const LOGO_KEY_A = "overlay_logo_a";
-const LOGO_KEY_B = "overlay_logo_b";
-const DB_PATH    = "player_data";
-const LEAGUE_PATH = "overlay_config/league";
 const LEAGUE_DEFAULT = { logo: "", line1: "BASKETBALL", line2: "THAI LEAGUE", year: "2026" };
+const userPath = (uid, path) => `users/${uid}/${path}`;
+const logoKey = (teamKey, uid) => `overlay_logo_${teamKey === "teamA" ? "a" : "b"}_${uid}`;
 
-const socket = io(SOCKET_URL, {
-  reconnection: true, reconnectionDelay: 1000, reconnectionAttempts: Infinity,
-});
+// The live socket connection is created once a signed-in user is known (see
+// App's mount effect below) so its auth token can be attached — every nested
+// component still calls the module-level send() below, unchanged.
+let socket = null;
 
 // ─── Sounds ───────────────────────────────────────────────────
 const hornAudio   = typeof Audio !== "undefined" ? new Audio("/horn.mp3") : null;
@@ -59,7 +57,7 @@ function formatShotClock(tenths) {
   if (t > 100) return String(Math.ceil(t/10));
   return `${Math.floor(t/10)}.${Math.floor(t%10)}`;
 }
-function send(type, team, value) { socket.emit("action", { type, team, value }); }
+function send(type, team, value) { socket?.emit("action", { type, team, value }); }
 function getNameFontSize(name = "") {
   const l = name.length;
   return l <= 8 ? 30 : l <= 12 ? 24 : l <= 16 ? 19 : 15;
@@ -75,7 +73,7 @@ const Pencil = ({ size = 13, color }) => (
 );
 
 // ─── Logo Picker (Upload + URL) ──────────────────────────────
-function LogoPicker({ teamKey, logoUrl, color, onSave }) {
+function LogoPicker({ teamKey, logoUrl, color, onSave, uid }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState(logoUrl || "");
   const fileInputRef = useRef(null);
@@ -96,11 +94,11 @@ function LogoPicker({ teamKey, logoUrl, color, onSave }) {
   const apply = () => {
     const v = url.trim();
     onSave(teamKey, v);
-    const lsKey = teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B;
+    const lsKey = logoKey(teamKey, uid);
     if (v) localStorage.setItem(lsKey, v); else localStorage.removeItem(lsKey);
     setOpen(false);
   };
-  const clear = () => { setUrl(""); onSave(teamKey, ""); localStorage.removeItem(teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B); setOpen(false); };
+  const clear = () => { setUrl(""); onSave(teamKey, ""); localStorage.removeItem(logoKey(teamKey, uid)); setOpen(false); };
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
@@ -209,7 +207,7 @@ function StatBlock({ children, danger, warn }) {
 }
 
 // ─── Team Card ────────────────────────────────────────────────
-function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave }) {
+function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave, uid }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(team.name);
   const color = team.color;
@@ -226,7 +224,7 @@ function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave }) {
 
       {/* header */}
       <div style={{ padding: "14px 16px 0", display: "flex", alignItems: "center", gap: 10, minHeight: 54 }}>
-        <LogoPicker teamKey={teamKey} logoUrl={logoUrl} color={color} onSave={onLogoSave} />
+        <LogoPicker teamKey={teamKey} logoUrl={logoUrl} color={color} onSave={onLogoSave} uid={uid} />
         <ColorPicker teamKey={teamKey} currentColor={color} />
         {editing ? (
           <input autoFocus value={nameInput} maxLength={20} onChange={e => setNameInput(e.target.value.toUpperCase())} onBlur={saveName} onKeyDown={e => e.key === "Enter" && saveName()} style={{
@@ -634,11 +632,13 @@ function LeagueEditor({ league, onSave, onClose }) {
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function App() {
-  const [view, setView] = useState(() => {
-    const v = new URLSearchParams(window.location.search).get("view");
-    return v === "display" ? "display" : "home";
-  });
+export default function App({ user, uid, onSignOut }) {
+  const DB_PATH     = userPath(uid, "player_data");
+  const LEAGUE_PATH = userPath(uid, "overlay_config/league");
+  const LOGO_KEY_A  = logoKey("teamA", uid);
+  const LOGO_KEY_B  = logoKey("teamB", uid);
+
+  const [view, setView] = useState("home");
   const [state, setState] = useState({
     teamA: { name: "HOME", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#E86A3A" },
     teamB: { name: "AWAY", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#2FA8DC" },
@@ -650,6 +650,9 @@ export default function App() {
   const [logoB, setLogoB] = useState(() => localStorage.getItem(LOGO_KEY_B) || "");
   const [league, setLeague] = useState(LEAGUE_DEFAULT);
   const [leagueOpen, setLeagueOpen] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [copiedWhich, setCopiedWhich] = useState(null);
 
   const prevGameClock  = useRef(state.clockTenths);
   const prevShotClock  = useRef(state.shotClockTenths);
@@ -671,7 +674,35 @@ export default function App() {
       if (v) setLeague({ ...LEAGUE_DEFAULT, ...v });
     });
     return () => { uA(); uB(); uL(); };
-  }, []);
+  }, [uid]);
+
+  // Offer a one-time, manual import of the old shared/global data into this
+  // account's own namespace — only if this account hasn't got any data yet.
+  useEffect(() => {
+    get(ref(db, DB_PATH)).then(snap => { if (!snap.exists()) setShowImport(true); }).catch(() => {});
+  }, [uid]);
+
+  const importLegacyData = async () => {
+    setImporting(true);
+    try {
+      const [pd, lg, td] = await Promise.all([
+        get(ref(db, "player_data")),
+        get(ref(db, "overlay_config/league")),
+        get(ref(db, "tournament_data")),
+      ]);
+      const updates = {};
+      if (pd.exists()) updates[DB_PATH] = pd.val();
+      if (lg.exists()) updates[LEAGUE_PATH] = lg.val();
+      if (td.exists()) updates[userPath(uid, "tournament_data")] = td.val();
+      if (Object.keys(updates).length) await update(ref(db), updates);
+      setShowImport(false);
+    } catch (e) {
+      console.error(e);
+      alert("นำเข้าข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const saveLeague = (cfg) => {
     setLeague(cfg);
@@ -683,6 +714,11 @@ export default function App() {
     set(ref(db, `${DB_PATH}/${teamKey}/logo`), url || "").catch(console.error);
     const lsKey = teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B;
     if (url) localStorage.setItem(lsKey, url); else localStorage.removeItem(lsKey);
+  };
+
+  const copyLink = async (which, url) => {
+    try { await navigator.clipboard.writeText(url); setCopiedWhich(which); setTimeout(() => setCopiedWhich(null), 1800); }
+    catch { window.prompt("คัดลอกลิงก์นี้:", url); }
   };
 
   useEffect(() => {
@@ -719,24 +755,37 @@ export default function App() {
     return () => window.removeEventListener("keydown", kd);
   }, [view]);
 
+  // The control socket carries the signed-in user's Firebase ID token so the
+  // server can verify it and scope every "action" to this account's own room.
+  // Passed as a callback (not a static value) so a refreshed/expired token is
+  // picked up automatically on reconnect.
   useEffect(() => {
+    socket = io(SOCKET_URL, {
+      reconnection: true, reconnectionDelay: 1000, reconnectionAttempts: Infinity,
+      auth: async (cb) => {
+        try { cb({ token: await user.getIdToken() }); }
+        catch { cb({ token: null }); }
+      },
+    });
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
     socket.on("stateUpdate", (s) => {
       if (!s?.teamA) return;
       setState({ ...s, teamA: { techFouls: 0, ...s.teamA }, teamB: { techFouls: 0, ...s.teamB } });
     });
-    return () => { socket.off("stateUpdate"); socket.off("connect"); socket.off("disconnect"); };
-  }, []);
+    return () => { socket.disconnect(); socket = null; };
+  }, [user]);
+
+  const overlayUrl = `${SOCKET_URL}/overlay?u=${uid}`;
+  const arenaUrl = `${window.location.origin}${window.location.pathname}?view=display&u=${uid}`;
 
   const handleNavigate = (dest) => {
-    if (dest === "overlay") { window.open(`${SOCKET_URL}/overlay`, "_blank"); return; }
+    if (dest === "overlay") { window.open(overlayUrl, "_blank"); return; }
     setView(dest);
   };
 
   if (view === "home") return <Home onNavigate={handleNavigate} />;
-  if (view === "display") return <DisplayBoard onBack={() => setView("home")} />;
-  if (view === "players") return <PlayerManager onBack={() => setView("home")} />;
+  if (view === "players") return <PlayerManager onBack={() => setView("home")} uid={uid} />;
 
   const navBtn = (extra = {}) => ({ ...btn("neutral"), padding: "7px 15px", borderRadius: r.pill, fontSize: 12, letterSpacing: "0.1em", ...extra });
 
@@ -765,18 +814,41 @@ export default function App() {
             <div style={{ ...overline({ fontSize: 9.5, marginTop: 3, letterSpacing: "0.36em" }) }}>LIVE BROADCAST CONTROL</div>
           </div>
         </div>
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setLeagueOpen(o => !o)} style={navBtn({ color: c.gold, borderColor: "rgba(216,182,92,0.3)", background: c.goldDim })}>LEAGUE</button>
           {leagueOpen && <LeagueEditor league={league} onSave={saveLeague} onClose={() => setLeagueOpen(false)} />}
           <button onClick={() => setView("players")} style={navBtn({ color: c.live, borderColor: "rgba(63,185,139,0.3)", background: c.liveDim })}>PLAYERS</button>
-          <button onClick={() => window.open(window.location.pathname + "?view=display", "_blank")} style={navBtn({ color: "#2FA8DC", borderColor: "rgba(47,168,220,0.3)", background: "rgba(47,168,220,0.12)" })}>ARENA</button>
+          <button onClick={() => window.open(arenaUrl, "_blank")} style={navBtn({ color: "#2FA8DC", borderColor: "rgba(47,168,220,0.3)", background: "rgba(47,168,220,0.12)" })}>ARENA</button>
+          <button className="press" onClick={() => copyLink("overlay", overlayUrl)} style={navBtn({ color: c.mute })}>
+            {copiedWhich === "overlay" ? "คัดลอกแล้ว ✓" : "COPY OVERLAY LINK"}
+          </button>
+          <button className="press" onClick={() => copyLink("arena", arenaUrl)} style={navBtn({ color: c.mute })}>
+            {copiedWhich === "arena" ? "คัดลอกแล้ว ✓" : "COPY ARENA LINK"}
+          </button>
           <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: r.pill, background: connected ? c.liveDim : c.dangerDim, border: `1px solid ${connected ? "rgba(63,185,139,0.3)" : "rgba(222,91,87,0.3)"}`, ...overline({ fontSize: 10.5, color: connected ? c.live : c.danger, letterSpacing: "0.16em" }) }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? c.live : c.danger }} />
             {connected ? "CONNECTED" : "OFFLINE"}
           </div>
           <button className="press" onClick={() => { if (window.confirm("รีเซ็ตเกมทั้งหมด?")) send("resetGame"); }} style={navBtn({ color: c.danger, borderColor: "rgba(222,91,87,0.28)", background: c.dangerDim })}>↺ RESET</button>
+          <div style={{ width: 1, height: 20, background: c.line, margin: "0 2px" }} />
+          <div style={{ ...overline({ fontSize: 10, color: c.faint, letterSpacing: "0.04em", textTransform: "none" }) }}>{user?.email}</div>
+          <button className="press" onClick={onSignOut} style={navBtn({ color: c.mute })}>SIGN OUT</button>
         </div>
       </div>
+
+      {/* Import legacy shared data (one-time, manual, opt-in) */}
+      {showImport && (
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 12, marginBottom: 12,
+          padding: "10px 14px", borderRadius: r.md, background: c.goldDim, border: `1px solid rgba(228,191,85,0.3)` }}>
+          <div style={{ flex: 1, fontSize: 13, color: c.dim, fontFamily: font.body }}>
+            พบข้อมูลทีม/โลโก้/รายการที่เคยตั้งค่าไว้ก่อนหน้านี้ — นำเข้ามาใช้กับบัญชีนี้ไหม?
+          </div>
+          <button className="press" disabled={importing} onClick={importLegacyData} style={{ ...btn("gold", { active: true }), padding: "7px 16px", fontSize: 12 }}>
+            {importing ? "กำลังนำเข้า…" : "นำเข้าข้อมูล"}
+          </button>
+          <button onClick={() => setShowImport(false)} style={{ ...btn("neutral"), padding: "7px 12px", fontSize: 12, color: c.mute }}>ข้าม</button>
+        </div>
+      )}
 
       {/* Overlay Preview */}
       <div style={{ position: "relative", marginBottom: 12 }}>
@@ -787,13 +859,13 @@ export default function App() {
       <div style={{ height: 1, background: c.line, marginBottom: 12, position: "relative" }} />
 
       <div style={{ position: "relative" }}>
-        <TournamentBridge state={state} send={send} />
+        <TournamentBridge state={state} send={send} uid={uid} />
       </div>
 
       <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 312px 1fr", gap: 12, maxWidth: 1440, margin: "0 auto" }}>
-        <TeamCard team={state.teamA} teamKey="teamA" quarter={state.quarter} logoUrl={logoA} onLogoSave={handleLogoSave} />
+        <TeamCard team={state.teamA} teamKey="teamA" quarter={state.quarter} logoUrl={logoA} onLogoSave={handleLogoSave} uid={uid} />
         <CenterCol state={state} />
-        <TeamCard team={state.teamB} teamKey="teamB" quarter={state.quarter} logoUrl={logoB} onLogoSave={handleLogoSave} />
+        <TeamCard team={state.teamB} teamKey="teamB" quarter={state.quarter} logoUrl={logoB} onLogoSave={handleLogoSave} uid={uid} />
       </div>
     </div>
   );

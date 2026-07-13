@@ -6,9 +6,8 @@ import { ref, onValue } from "firebase/database";
 import { c as tok, font, r, overline, btn, FONT_IMPORT } from "./theme";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
-const DB_PATH      = "player_data";
-const LEAGUE_PATH  = "overlay_config/league";
 const LEAGUE_DEFAULT = { logo: "", line1: "BASKETBALL", line2: "THAI LEAGUE", year: "2026" };
+const userPath = (uid, path) => `users/${uid}/${path}`;
 
 // ─── Accent colors used on the arena face (single source: theme.js) ──
 const GOLD = tok.gold, LIVE = tok.live, RED = tok.danger;
@@ -210,7 +209,10 @@ function TimeoutCallout({ data }) {
 // ═══════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════
-export default function DisplayBoard({ onBack }) {
+export default function DisplayBoard({ uid, onBack = () => { window.location.href = "/"; } }) {
+  const DB_PATH     = uid ? userPath(uid, "player_data") : null;
+  const LEAGUE_PATH = uid ? userPath(uid, "overlay_config/league") : null;
+
   const [state, setState] = useState({
     teamA: { name: "HOME", score: 0, teamFouls: 0, timeouts: 2, color: "#E86A3A" },
     teamB: { name: "AWAY", score: 0, teamFouls: 0, timeouts: 2, color: "#2FA8DC" },
@@ -238,16 +240,19 @@ export default function DisplayBoard({ onBack }) {
   const prevToB    = useRef(2);
 
   useEffect(() => {
+    if (!uid) return;
     const parse = (d, fallback) => ({ name: d?.name || fallback, logo: d?.logo || "", players: Array.isArray(d?.players) ? d.players : defaultPlayers() });
     const uA = onValue(ref(db, `${DB_PATH}/teamA`), s => setFbA(parse(s.val(), "HOME")));
     const uB = onValue(ref(db, `${DB_PATH}/teamB`), s => setFbB(parse(s.val(), "AWAY")));
     const uConn = onValue(ref(db, ".info/connected"), s => setDbConnected(!!s.val()));
     const uL = onValue(ref(db, LEAGUE_PATH), s => { const v = s.val(); if (v) setLeague({ ...LEAGUE_DEFAULT, ...v }); });
     return () => { uA(); uB(); uConn(); uL(); };
-  }, []);
+  }, [uid]);
 
   useEffect(() => {
-    const socket = io(SOCKET_URL, { reconnection: true });
+    if (!uid) return;
+    // Read-only viewer: no auth token, just asks to join this uid's broadcast room.
+    const socket = io(SOCKET_URL, { reconnection: true, query: { uid } });
     socket.on("connect", () => setSocketConnected(true));
     socket.on("disconnect", () => setSocketConnected(false));
     socket.on("stateUpdate", (s) => {
@@ -261,7 +266,17 @@ export default function DisplayBoard({ onBack }) {
       setState(s);
     });
     return () => socket.disconnect();
-  }, []);
+  }, [uid]);
+
+  if (!uid) {
+    return (
+      <div style={{ width: "100vw", height: "100vh", background: tok.bg, color: tok.mute,
+        display: "flex", alignItems: "center", justifyContent: "center", fontFamily: font.body,
+        fontSize: 14, letterSpacing: "0.08em", textAlign: "center", padding: 20 }}>
+        ลิงก์นี้ไม่มีรหัสเกม (?u=) — คัดลอกลิงก์ Arena ใหม่จากหน้า Control
+      </div>
+    );
+  }
 
   const { teamA, teamB, quarter, clockTenths, isRunning, shotClockTenths, possession, jumpBall } = state;
   const shotSec    = shotClockTenths / 10;

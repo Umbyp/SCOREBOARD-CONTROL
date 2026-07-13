@@ -4,10 +4,9 @@ import { db } from "./firebase";
 import { ref, onValue, set } from "firebase/database";
 import { c, font, r, shadow, overline, panel, btn, FONT_IMPORT } from "./theme";
 
-const DB_PATH     = "player_data";
-const LOGO_KEY_A  = "overlay_logo_a";
-const LOGO_KEY_B  = "overlay_logo_b";
 const MAX_PLAYERS = 16;
+const userPath = (uid, path) => `users/${uid}/${path}`;
+const logoKey = (teamKey, uid) => `overlay_logo_${teamKey === "teamA" ? "a" : "b"}_${uid}`;
 
 const TEAM_DEFAULTS = {
   teamA: { name: "HOME", color: "#E86A3A", logo: "" },
@@ -252,7 +251,9 @@ function TeamPanel({ teamKey, data, saveStatus, onUpdate }) {
 // ═══════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════
-export default function PlayerManager({ onBack }) {
+export default function PlayerManager({ onBack, uid }) {
+  const DB_PATH = userPath(uid, "player_data");
+
   const [dataA, setDataA] = useState(defaultTeamData("teamA"));
   const [dataB, setDataB] = useState(defaultTeamData("teamB"));
   const [saveStatusA, setSaveStatusA] = useState(null);
@@ -285,12 +286,12 @@ export default function PlayerManager({ onBack }) {
     });
     const uConn = onValue(ref(db, ".info/connected"), (snap) => setConnected(!!snap.val()));
     return () => { uA(); uB(); uConn(); };
-  }, []);
+  }, [uid]);
 
   const saveTeam = useCallback(async (teamKey, data, setStatus) => {
     setStatus("saving");
     try {
-      const lsKey = teamKey === "teamA" ? LOGO_KEY_A : LOGO_KEY_B;
+      const lsKey = logoKey(teamKey, uid);
       if (data.logo) localStorage.setItem(lsKey, data.logo);
       else localStorage.removeItem(lsKey);
 
@@ -309,7 +310,7 @@ export default function PlayerManager({ onBack }) {
       setStatus("error");
       setTimeout(() => setStatus(null), 3000);
     }
-  }, []);
+  }, [uid, DB_PATH]);
 
   const handleUpdate = useCallback((teamKey, newData) => {
     if (teamKey === "teamA") {
@@ -377,7 +378,7 @@ export default function PlayerManager({ onBack }) {
       {/* FOOTER */}
       <div style={{ padding: "7px 16px", textAlign: "center", ...overline({ fontSize: 9, color: c.faint, letterSpacing: "0.14em" }),
         flexShrink: 0, borderTop: `1px solid ${c.lineSoft}` }}>
-        FIREBASE · player_data/teamA · player_data/teamB · logo sync → overlay
+        FIREBASE · {DB_PATH}/teamA · {DB_PATH}/teamB · logo sync → overlay
       </div>
     </div>
   );
