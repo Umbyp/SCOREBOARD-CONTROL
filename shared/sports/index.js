@@ -7,8 +7,10 @@
 // Adding a sport = add a module here. Nothing else in the registry changes.
 
 import basketball from "./basketball.js";
+import badminton from "./badminton.js";
+import football7 from "./football7.js";
 
-export const SPORTS = { basketball };
+export const SPORTS = { basketball, badminton, football7 };
 
 export const DEFAULT_SPORT = "basketball";
 

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { db } from "./firebase";
 import { ref, onValue, set } from "firebase/database";
 import { c, font, r, shadow, overline, panel, btn, FONT_IMPORT } from "./theme";
+import { useConfirm } from "./ConfirmDialog";
 
 const MAX_PLAYERS = 16;
 const userPath = (uid, path) => `users/${uid}/${path}`;
@@ -162,11 +163,17 @@ function PlayerRow({ player, index, color, onChange, onRemove, canRemove }) {
 function TeamPanel({ teamKey, data, saveStatus, onUpdate }) {
   const color   = data.color || TEAM_DEFAULTS[teamKey].color;
   const players = data.players || [];
+  const [askConfirm, confirmDialog] = useConfirm();
 
   const updatePlayer = (idx, newP) => onUpdate(teamKey, { ...data, players: players.map((p, i) => i === idx ? newP : p) });
   const addPlayer = () => { if (players.length >= MAX_PLAYERS) return; onUpdate(teamKey, { ...data, players: [...players, newPlayer(players.length + 1)] }); };
   const removePlayer = (idx) => { if (players.length <= 1) return; onUpdate(teamKey, { ...data, players: players.filter((_, i) => i !== idx) }); };
-  const resetFouls = () => { if (!confirm(`Reset ฟาวล์ผู้เล่นทั้งหมดในทีม ${data.name}?`)) return; onUpdate(teamKey, { ...data, players: players.map(p => ({ ...p, fouls: 0 })) }); };
+  const resetFouls = () => askConfirm({
+    title: `Reset ฟาวล์ทั้งทีม ${data.name}?`,
+    body: "ฟาวล์ของผู้เล่นทุกคนในทีมนี้จะกลับเป็น 0",
+    confirmLabel: "รีเซ็ตฟาวล์",
+    onConfirm: () => onUpdate(teamKey, { ...data, players: players.map(p => ({ ...p, fouls: 0 })) }),
+  });
 
   const totalFouls  = players.reduce((s, p) => s + (p.fouls || 0), 0);
   const fouledOut   = players.filter(p => (p.fouls || 0) >= 5).length;
@@ -177,6 +184,7 @@ function TeamPanel({ teamKey, data, saveStatus, onUpdate }) {
 
   return (
     <div style={panel({ display: "flex", flexDirection: "column", overflow: "hidden", height: "100%", boxShadow: shadow.sm })}>
+      {confirmDialog}
       <div style={{ height: 3, background: color }} />
 
       {/* HEADER */}

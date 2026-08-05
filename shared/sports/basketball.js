@@ -31,6 +31,10 @@ export default {
     tournament: true,
   },
 
+  clockDirection: "down",
+  // Under a minute the game clock switches to tenths, as it does courtside.
+  clockShowsTenths: true,
+
   scoreSteps: [1, 2, 3],
 
   // Every action the server will accept while this sport is active. Anything

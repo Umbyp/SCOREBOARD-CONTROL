@@ -49,13 +49,22 @@ function getEntry(uid) {
 
 function startClock(entry) {
   if (entry.clockInterval) return;
+  // Football's clock runs up and carries on into stoppage time — there is no
+  // zero to hit, so it never self-stops; the operator stops it on the whistle.
+  const countsUp = getSport(entry.data.sport).clockDirection === "up";
   entry.lastClockTick = Date.now();
   entry.clockInterval = setInterval(() => {
     const now = Date.now();
     const tenths = (now - entry.lastClockTick) / 100;
     entry.lastClockTick = now;
-    entry.data.clockTenths = Math.max(0, entry.data.clockTenths - tenths);
 
+    if (countsUp) {
+      entry.data.clockTenths = Math.min(CLOCK_MAX_TENTHS, entry.data.clockTenths + tenths);
+      broadcast(entry);
+      return;
+    }
+
+    entry.data.clockTenths = Math.max(0, entry.data.clockTenths - tenths);
     if (entry.data.clockTenths <= 0) {
       stopClock(entry);
       entry.data.isRunning = false;
@@ -92,7 +101,8 @@ function broadcast(entry) { io.to(entry.uid).emit("stateUpdate", entry.data); }
 const TEAM_KEYS = new Set(["teamA", "teamB"]);
 const TEAM_ACTIONS = new Set([
   "score", "foul", "techFoul", "teamFoul", "teamFoulReset",
-  "timeout", "teamName", "teamColor",
+  "timeout", "teamName", "partnerName", "teamColor",
+  "yellowCard", "redCard",
 ]);
 
 // Actions that exist outside any one sport's rulebook, so they are checked
@@ -223,14 +233,21 @@ io.on("connection", (socket) => {
     // Hiding a button in the UI is not enough — a stale tab or a hand-crafted
     // socket frame could still send "shotClockSet" during a badminton match,
     // which would write a field that sport's state doesn't have.
-    if (!GLOBAL_ACTIONS.has(type) && !getSport(gameState.sport).actions.has(type)) return;
+    const sport = getSport(gameState.sport);
+    if (!GLOBAL_ACTIONS.has(type) && !sport.actions.has(type)) return;
 
     entry.lastActivityAt = Date.now();
 
     switch (type) {
-      case "score":
-        gameState[team].score = clamp(gameState[team].score + int(value, -99, 99), 0, 999);
+      case "score": {
+        const delta = int(value, -99, 99);
+        gameState[team].score = clamp(gameState[team].score + delta, 0, 999);
+        // Rally sports end a game (and hand over serve) on the point itself.
+        // Only a point *scored* triggers that — a −1 correction must not flip
+        // the serve or hand out a game.
+        if (delta > 0) sport.onScore?.(gameState, team);
         break;
+      }
       case "foul":
         gameState[team].fouls = clamp(gameState[team].fouls + int(value, -6, 6), 0, 6);
         break;
@@ -248,6 +265,21 @@ io.on("connection", (socket) => {
         break;
       case "teamName":
         gameState[team].name = cleanName(value, gameState[team].name);
+        break;
+      case "partnerName":
+        gameState[team].partner = cleanName(value, gameState[team].partner);
+        break;
+      case "yellowCard":
+        gameState[team].yellowCards = clamp((gameState[team].yellowCards || 0) + int(value, -20, 20), 0, 20);
+        break;
+      case "redCard":
+        gameState[team].redCards = clamp((gameState[team].redCards || 0) + int(value, -20, 20), 0, 20);
+        break;
+      case "serve":
+        gameState.serve = TEAM_KEYS.has(value) ? value : null;
+        break;
+      case "setDoubles":
+        gameState.doubles = !gameState.doubles;
         break;
       case "teamColor":
         gameState[team].color = cleanColor(value, gameState[team].color);

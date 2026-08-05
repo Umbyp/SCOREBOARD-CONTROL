@@ -255,7 +255,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <script>
-  const SERVER_URL = "https://scoreboard-control.onrender.com";
+  // In production this page is also served from Vercel, where the socket
+  // server is a different host — hence the hardcoded URL. Served from a dev
+  // machine it is the game server itself, so talk to our own origin instead;
+  // otherwise a local overlay silently shows the live production game.
+  const IS_LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);
+  const SERVER_URL = IS_LOCAL ? location.origin : "https://scoreboard-control.onrender.com";
 
   // Read-only viewer: which account's game to show, from ?u=<uid> in this
   // overlay's own URL (the same uid the operator's "Copy Overlay Link" button
@@ -284,13 +289,30 @@
   let prevState = null;
 
   // ── Format helpers ──
-  function fmtMain(t) {
+  function fmtMain(t, alwaysMinutes) {
     t = Math.max(0, t);
-    if (t > 600) { const s = Math.floor(t / 10); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+    if (t > 600 || alwaysMinutes) { const s = Math.floor(t / 10); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
     return Math.floor(t / 10) + "." + Math.floor(t % 10);
   }
   function fmtShot(t) { t = Math.max(0, t); return t > 100 ? Math.ceil(t / 10) : Math.floor(t / 10) + "." + Math.floor(t % 10); }
   function ordinal(q) { return q > 4 ? "OT" + (q - 4) : (["1ST","2ND","3RD","4TH"][q - 1] || ("Q" + q)); }
+
+  // This page is served straight from /public, so it can't import the sport
+  // registry the way the React app does. It reads the shape of the state
+  // instead of matching on sport names — a payload with no clock is a rally
+  // sport, and that stays true for any sport added later.
+  const hasClock = (s) => typeof s.clockTenths === "number";
+  const hasShot  = (s) => typeof s.shotClockTenths === "number";
+  const hasFouls = (s) => typeof s.teamA.teamFouls === "number";
+  const hasCards = (s) => typeof s.teamA.yellowCards === "number";
+
+  // Football counts up and is read in whole seconds; basketball counts down
+  // and drops to tenths in the last minute.
+  function periodText(s) {
+    if (!hasClock(s)) return s.matchOver ? `${s.teamA.gamesWon}–${s.teamB.gamesWon}` : s.period;
+    if (s.clockUp) return s.period <= 2 ? "H" + s.period : "ET" + (s.period - 2);
+    return ordinal(s.period);
+  }
 
   // ── Main render ──
   function render(s) {
@@ -303,59 +325,100 @@
       if (s.teamB.timeouts < prevState.teamB.timeouts) showTO(s.teamB.name, s.teamB.color);
     }
 
-    updateTeam('a', s.teamA, s.possession === 'teamA');
-    updateTeam('b', s.teamB, s.possession === 'teamB');
+    const rally = !hasClock(s);
 
-    document.getElementById('qlabel').textContent = ordinal(s.period);
-    document.getElementById('jump').style.display = s.jumpBall ? "block" : "none";
+    // A rally sport highlights whoever is serving, exactly where basketball
+    // shows the possession arrow.
+    updateTeam('a', s.teamA, rally ? s.serve === 'teamA' : s.possession === 'teamA', s);
+    updateTeam('b', s.teamB, rally ? s.serve === 'teamB' : s.possession === 'teamB', s);
+
+    // Only show the cells this sport actually has.
+    document.getElementById('game').style.display = hasClock(s) ? "" : "none";
+    document.getElementById('shot').style.display = hasShot(s) ? "" : "none";
+
+    const periodCell = document.getElementById('period');
+    periodCell.querySelector('.info-lbl').textContent =
+      rally ? (s.matchOver ? "RESULT" : "GAME") : s.clockUp ? "HALF" : "PERIOD";
+    document.getElementById('qlabel').textContent = periodText(s);
+    document.getElementById('jump').style.display = (s.jumpBall && !rally && !s.clockUp) ? "block" : "none";
 
     prevState = JSON.parse(JSON.stringify(s));
     localState = s;
     lastUpdateTimestamp = Date.now();
   }
 
-  function updateTeam(id, team, isPoss) {
+  function updateTeam(id, team, highlight, s) {
     document.getElementById(`lc-${id}`).style.setProperty('--tc', team.color);
     document.getElementById(`panel-${id}`).style.setProperty('--tc', team.color);
 
     document.getElementById(`sc-${id}`).textContent = team.score;
 
     const nmEl = document.getElementById(`nm-${id}`);
-    nmEl.textContent = team.name;
-    const l = team.name.length;
+    // In doubles both names share the panel.
+    const label = (s && s.doubles && team.partner) ? `${team.name} / ${team.partner}` : team.name;
+    nmEl.textContent = label;
+    const l = label.length;
     nmEl.style.fontSize = l <= 6 ? "28px" : l <= 10 ? "24px" : l <= 14 ? "19px" : "15px";
-    nmEl.classList.toggle('poss', isPoss);
+    nmEl.classList.toggle('poss', highlight);
 
     // keep the no-logo placeholder letter in sync with the live team name
     document.getElementById(`logo-ph-${id}`).textContent = (team.name || (id === 'a' ? 'H' : 'A'))[0];
 
-    // foul dashes (5)
-    const fouls = Math.min(team.teamFouls || 0, 5);
-    const bonus = (team.teamFouls || 0) >= 5;
+    // The dash row carries fouls in basketball and games won in a rally sport.
     const fd = document.getElementById(`fd-${id}`);
     fd.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
-      const d = document.createElement('div');
-      d.className = 'dash' + (i < fouls ? (bonus ? ' on bonus' : ' on') : '');
-      fd.appendChild(d);
+    if (s && hasFouls(s)) {
+      const fouls = Math.min(team.teamFouls || 0, 5);
+      const bonus = (team.teamFouls || 0) >= 5;
+      for (let i = 0; i < 5; i++) {
+        const d = document.createElement('div');
+        d.className = 'dash' + (i < fouls ? (bonus ? ' on bonus' : ' on') : '');
+        fd.appendChild(d);
+      }
+    } else if (typeof team.gamesWon === "number") {
+      for (let i = 0; i < 2; i++) {
+        const d = document.createElement('div');
+        d.className = 'dash' + (i < team.gamesWon ? ' on bonus' : '');
+        fd.appendChild(d);
+      }
+    } else if (s && hasCards(s)) {
+      // A bar per booking: yellows first, then reds.
+      const y = Math.min(team.yellowCards || 0, 4), rd = Math.min(team.redCards || 0, 2);
+      for (let i = 0; i < y; i++) {
+        const d = document.createElement('div');
+        d.className = 'dash on'; d.style.background = '#E3C038'; d.style.width = '6px';
+        fd.appendChild(d);
+      }
+      for (let i = 0; i < rd; i++) {
+        const d = document.createElement('div');
+        d.className = 'dash on'; d.style.background = '#D2453C'; d.style.width = '6px';
+        fd.appendChild(d);
+      }
     }
 
-    document.getElementById(`poss-${id}`).className = 'possline' + (isPoss ? ' on' : '');
+    document.getElementById(`poss-${id}`).className = 'possline' + (highlight ? ' on' : '');
   }
 
   // ── Clock interpolation ──
   function syncLoop() {
+    // Nothing to interpolate for a sport with no clock — bail before these
+    // reads turn into NaN on screen.
+    if (localState && !hasClock(localState)) { requestAnimationFrame(syncLoop); return; }
     if (localState && localState.isRunning) {
       const elapsed = Date.now() - lastUpdateTimestamp;
-      const cur = Math.max(0, localState.clockTenths - Math.floor(elapsed / 100));
+      const up = !!localState.clockUp;
+      const cur = up
+        ? localState.clockTenths + Math.floor(elapsed / 100)
+        : Math.max(0, localState.clockTenths - Math.floor(elapsed / 100));
       const m = document.getElementById('mclock');
-      m.textContent = fmtMain(cur);
-      m.classList.toggle('expired', cur <= 0);
+      m.textContent = fmtMain(cur, up);
+      // Counting up, zero is kick-off; the red state belongs to a countdown.
+      m.classList.toggle('expired', !up && cur <= 0);
     } else if (localState) {
-      document.getElementById('mclock').textContent = fmtMain(localState.clockTenths);
+      document.getElementById('mclock').textContent = fmtMain(localState.clockTenths, !!localState.clockUp);
     }
 
-    if (localState) {
+    if (localState && hasShot(localState)) {
       let cur = localState.shotClockTenths;
       if (localState.shotRunning) { const e = Date.now() - lastUpdateTimestamp; cur = Math.max(0, localState.shotClockTenths - Math.floor(e / 100)); }
       document.getElementById('shotval').textContent = fmtShot(cur);
