@@ -141,7 +141,7 @@ export default function TournamentBridge({ state, send, uid }) {
   const [autoEvents, setAutoEvents] = useState([]); // [{msg, time}]
 
   // ── Refs to track previous state values ──────────────────────────────────
-  const prevQuarter    = useRef(state.quarter);
+  const prevPeriod    = useRef(state.period);
   const prevScoreA     = useRef(state.teamA.score);
   const prevScoreB     = useRef(state.teamB.score);
   const prevClock      = useRef(state.clockTenths);
@@ -171,15 +171,15 @@ export default function TournamentBridge({ state, send, uid }) {
   // ── Half-time = end of Q2, Q3 starts → team fouls reset to 0 both teams
   // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (prevQuarter.current !== state.quarter) {
-      if (state.quarter === 3 && autoFoulReset) {
+    if (prevPeriod.current !== state.period) {
+      if (state.period === 3 && autoFoulReset) {
         send("teamFoulReset", "teamA");
         send("teamFoulReset", "teamB");
         addEvent("🔄 Reset team fouls ทั้งสองทีม (Q3 เริ่ม — FIBA)");
       }
-      prevQuarter.current = state.quarter;
+      prevPeriod.current = state.period;
     }
-  }, [state.quarter, autoFoulReset]);
+  }, [state.period, autoFoulReset]);
 
   // ══════════════════════════════════════════════════════════════════════════
   // FIX 2: Auto reset shot clock to 24s on made basket (score increases)
@@ -222,27 +222,27 @@ export default function TournamentBridge({ state, send, uid }) {
     if (prevClock.current > 0 && state.clockTenths === 0 && autoStopClock) {
       if (isRunningRef.current)   send("clockToggle");
       if (shotRunningRef.current) send("shotClockToggle");
-      addEvent(`⏹ Auto-stop: นาฬิกาหมด ${state.quarter > 4 ? `OT${state.quarter - 4}` : `Q${state.quarter}`}`);
+      addEvent(`⏹ Auto-stop: นาฬิกาหมด ${state.period > 4 ? `OT${state.period - 4}` : `Q${state.period}`}`);
     }
     prevClock.current = state.clockTenths;
   }, [state.clockTenths, autoStopClock]);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // NEW: End-of-Quarter sequence
-  // ── Stops both clocks → advances quarter → resets game clock → shot clock 24s
+  // NEW: End-of-Period sequence
+  // ── Stops both clocks → advances period → resets game clock → shot clock 24s
   // ── Q3 team foul reset handled automatically by the useEffect above
   // ══════════════════════════════════════════════════════════════════════════
-  const handleEndQuarter = () => {
+  const handleEndPeriod = () => {
     if (isRunningRef.current)   send("clockToggle");
     if (shotRunningRef.current) send("shotClockToggle");
 
-    const nextQ = Math.min(state.quarter + 1, 5);
-    send("quarter", null, nextQ);
+    const nextQ = Math.min(state.period + 1, 5);
+    send("period", null, nextQ);
     send("clockReset");
     send("shotClockSet", null, 24);
 
     const qStr = q => q > 4 ? `OT${q - 4}` : `Q${q}`;
-    addEvent(`⏭ ${qStr(state.quarter)} จบ → ขึ้น ${qStr(nextQ)}`);
+    addEvent(`⏭ ${qStr(state.period)} จบ → ขึ้น ${qStr(nextQ)}`);
   };
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -380,7 +380,7 @@ export default function TournamentBridge({ state, send, uid }) {
   // ── Derived display values ────────────────────────────────────────────────
   const { homeScore, awayScore } = extractScores();
   const sched  = selectedId ? MATCH_SCHEDULE[selectedId] || {} : {};
-  const qLabel = state.quarter > 4 ? `OT${state.quarter - 4}` : `Q${state.quarter}`;
+  const qLabel = state.period > 4 ? `OT${state.period - 4}` : `Q${state.period}`;
 
   const S = (s) => ({ fontFamily: font.label, fontWeight: 600, ...s });
 
@@ -599,21 +599,21 @@ export default function TournamentBridge({ state, send, uid }) {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
 
-                  {/* ── ปุ่มจบ Quarter ── */}
+                  {/* ── ปุ่มจบ Period ── */}
                   <button
-                    onClick={handleEndQuarter}
-                    disabled={state.quarter >= 5}
+                    onClick={handleEndPeriod}
+                    disabled={state.period >= 5}
                     style={{
-                      ...btn("gold", { active: state.quarter < 5 }),
+                      ...btn("gold", { active: state.period < 5 }),
                       padding: "12px 0",
-                      color: state.quarter >= 5 ? c.faint : c.gold,
-                      cursor: state.quarter >= 5 ? "not-allowed" : "pointer",
+                      color: state.period >= 5 ? c.faint : c.gold,
+                      cursor: state.period >= 5 ? "not-allowed" : "pointer",
                       ...S({ fontSize: 14, letterSpacing: "0.06em" }),
                     }}
                   >
                     จบ {qLabel}
                     <div style={{ fontSize: 11, color: c.mute, marginTop: 3, fontFamily: font.body, letterSpacing: 0, fontWeight: 400 }}>
-                      Stop + ขึ้น {state.quarter < 4 ? `Q${state.quarter + 1}` : state.quarter === 4 ? "OT" : "—"}
+                      Stop + ขึ้น {state.period < 4 ? `Q${state.period + 1}` : state.period === 4 ? "OT" : "—"}
                     </div>
                   </button>
 

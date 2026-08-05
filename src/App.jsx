@@ -7,6 +7,7 @@ import TournamentBridge from "./TournamentBridge";
 import Home from "./Home";
 import PlayerManager from "./PlayerManager";
 import { c, font, r, shadow, overline, panel, readout, btn, FONT_IMPORT } from "./theme";
+import { SPORTS, getSport, isSport, initialState, DEFAULT_SPORT } from "../shared/sports/index.js";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 const LEAGUE_DEFAULT = { logo: "", line1: "BASKETBALL", line2: "THAI LEAGUE", year: "2026" };
@@ -62,7 +63,6 @@ function getNameFontSize(name = "") {
   const l = name.length;
   return l <= 8 ? 30 : l <= 12 ? 24 : l <= 16 ? 19 : 15;
 }
-function getTimeoutMax(q) { return q >= 5 ? 1 : 2; }
 
 // ─── Small inline icons ──────────────────────────────────────
 const Pencil = ({ size = 13, color }) => (
@@ -207,11 +207,11 @@ function StatBlock({ children, danger, warn }) {
 }
 
 // ─── Team Card ────────────────────────────────────────────────
-function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave, uid }) {
+function TeamCard({ team, teamKey, period, sport, logoUrl, onLogoSave, uid }) {
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(team.name);
   const color = team.color;
-  const timeoutMax = getTimeoutMax(quarter);
+  const timeoutMax = sport.timeoutsForPeriod?.(period) ?? team.timeouts;
   // Keep the edit box in sync with externally-applied renames (e.g. from
   // TournamentBridge match selection) whenever the operator isn't actively typing.
   useEffect(() => { if (!editing) setNameInput(team.name); }, [team.name, editing]);
@@ -271,7 +271,7 @@ function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave, uid }) {
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
             <div>
               <div style={overline()}>TIMEOUTS</div>
-              <div style={{ fontFamily: font.body, fontSize: 11, color: c.faint, marginTop: 2 }}>{quarter <= 2 ? "Q1–Q2" : quarter <= 4 ? "Q3–Q4" : `OT${quarter - 4}`}</div>
+              <div style={{ fontFamily: font.body, fontSize: 11, color: c.faint, marginTop: 2 }}>{sport.timeoutGroupLabel?.(period)}</div>
             </div>
             <div style={readout(28, c.dim, { fontWeight: 700 })}>{team.timeouts}</div>
           </div>
@@ -286,6 +286,29 @@ function TeamCard({ team, teamKey, quarter, logoUrl, onLogoSave, uid }) {
   );
 }
 
+// ─── Sport switcher ──────────────────────────────────────────
+// Reads straight off the registry, so registering a new sport is the only
+// thing needed to make it selectable here.
+function SportSwitcher({ current, onSwitch }) {
+  return (
+    <div style={{ display: "flex", gap: 3, padding: 3, borderRadius: r.pill,
+      background: c.bgInset, border: `1px solid ${c.line}` }}>
+      {Object.values(SPORTS).map(s => {
+        const active = s.id === current;
+        return (
+          <button key={s.id} onClick={() => onSwitch(s.id)} title={`คุมสกอร์${s.label}`} style={{
+            ...btn("gold", { active }), padding: "6px 14px", borderRadius: r.pill,
+            fontSize: 12, letterSpacing: "0.06em", border: "none",
+            background: active ? c.goldDim : "transparent",
+            color: active ? c.gold : c.mute, cursor: active ? "default" : "pointer" }}>
+            {s.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Keyboard hint chip ──────────────────────────────────────
 const Hint = ({ children }) => <span style={{ position: "absolute", right: 7, top: 7, fontFamily: font.body,
   fontSize: 10, fontWeight: 600, color: c.faint, background: "rgba(0,0,0,0.35)", padding: "1px 5px",
@@ -293,14 +316,14 @@ const Hint = ({ children }) => <span style={{ position: "absolute", right: 7, to
 
 // ─── Center Column (Game Clock, Shot Clock, Presets) ──────────
 function CenterCol({ state }) {
-  const { clockTenths, isRunning, quarter, shotClockTenths, shotRunning, possession, jumpBall } = state;
+  const { clockTenths, isRunning, period, shotClockTenths, shotRunning, possession, jumpBall } = state;
   const shotSec = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const shotWarn = shotSec <= 10 && shotClockTenths > 0;
   const shotColor = shotUrgent ? c.danger : shotWarn ? c.warn : c.live;
 
   const gameTimeUp = clockTenths === 0;
-  const qLabel = quarter > 4 ? `OT${quarter - 4}` : `Q${quarter}`;
+  const qLabel = period > 4 ? `OT${period - 4}` : `Q${period}`;
 
   const mini = (tone) => ({ ...btn(tone), fontSize: 11, padding: "7px 0", position: "relative" });
 
@@ -343,16 +366,16 @@ function CenterCol({ state }) {
         <div style={{ background: c.bgInset, border: `1px solid ${c.line}`, borderRadius: r.md, padding: 8, marginTop: 5, marginBottom: 10 }}>
           <div style={{ ...overline({ fontSize: 9.5, marginBottom: 7, textAlign: "center" }) }}>TIME PRESETS</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 5 }}>
-            <button onClick={() => { send("clockSet", null, 6000); send("clockStop"); }} style={mini("gold")}>START 10:00</button>
-            <button onClick={() => { send("clockSet", null, 7200); send("clockStop"); }} style={mini("gold")}>START 12:00</button>
+            <button onClick={() => { send("clockSet", null, 6000); }} style={mini("gold")}>START 10:00</button>
+            <button onClick={() => { send("clockSet", null, 7200); }} style={mini("gold")}>START 12:00</button>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 5 }}>
-            <button onClick={() => { send("clockSet", null, 1200); send("clockStop"); }} style={mini("#2FA8DC")}>REST 02:00</button>
-            <button onClick={() => { send("clockSet", null, 9000); send("clockStop"); }} style={mini("#2FA8DC")}>HALF 15:00</button>
+            <button onClick={() => { send("clockSet", null, 1200); }} style={mini("#2FA8DC")}>REST 02:00</button>
+            <button onClick={() => { send("clockSet", null, 9000); }} style={mini("#2FA8DC")}>HALF 15:00</button>
           </div>
           <div style={{ display: "flex", gap: 5 }}>
-            <button onClick={() => { send("clockSet", null, 600); send("clockStop"); }} style={{ ...mini("warn"), flex: 1 }}>T.O. 60s</button>
-            <button onClick={() => { send("clockSet", null, 300); send("clockStop"); }} style={{ ...mini("warn"), flex: 1 }}>T.O. 30s</button>
+            <button onClick={() => { send("clockSet", null, 600); }} style={{ ...mini("warn"), flex: 1 }}>T.O. 60s</button>
+            <button onClick={() => { send("clockSet", null, 300); }} style={{ ...mini("warn"), flex: 1 }}>T.O. 30s</button>
           </div>
         </div>
 
@@ -362,7 +385,7 @@ function CenterCol({ state }) {
 
         <div style={{ ...overline({ fontSize: 9.5, marginBottom: 6 }) }}>PERIOD</div>
         <div style={{ display: "flex", gap: 5 }}>
-          {[1,2,3,4,5].map(q=><button key={q} onClick={()=>send("quarter",null,q)} style={{ ...btn("gold", { active: quarter === q }), flex: 1, padding: "9px 0", fontSize: 14, color: quarter === q ? c.gold : c.mute }}>{q>4?"OT":`Q${q}`}</button>)}
+          {[1,2,3,4,5].map(q=><button key={q} onClick={()=>send("period",null,q)} style={{ ...btn("gold", { active: period === q }), flex: 1, padding: "9px 0", fontSize: 14, color: period === q ? c.gold : c.mute }}>{q>4?"OT":`Q${q}`}</button>)}
         </div>
       </div>
 
@@ -450,7 +473,7 @@ function useScorePop(score) {
 
 // ─── Overlay Preview (mirrors public/overlay.html) ────────────
 function OverlayPreview({ state, logoA, logoB, league }) {
-  const { teamA, teamB, quarter, clockTenths, shotClockTenths, possession, jumpBall } = state;
+  const { teamA, teamB, period, clockTenths, shotClockTenths, possession, jumpBall } = state;
   const shotSec = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const gameTimeUp = clockTenths === 0;
@@ -558,7 +581,7 @@ function OverlayPreview({ state, logoA, logoB, league }) {
           <div style={{ width: 48, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" }}>
             {jumpBall && <div style={{ position: "absolute", top: 2, fontFamily: font.label, fontWeight: 800, fontSize: 7, letterSpacing: "0.16em", color: GOLD }}>JUMP</div>}
             <div style={{ fontFamily: font.label, fontWeight: 700, fontSize: 7.5, letterSpacing: "0.14em", color: c.mute, marginBottom: 1 }}>PERIOD</div>
-            <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: 16, color: GOLD, lineHeight: 1 }}>{ordinal(quarter)}</div>
+            <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: 16, color: GOLD, lineHeight: 1 }}>{ordinal(period)}</div>
           </div>
           {infoCell("GAME", formatGameClock(clockTenths), gameTimeUp ? c.danger : "#fff", 66, gameTimeUp)}
           {infoCell("SHOT", formatShotClock(shotClockTenths), shotUrgent ? c.danger : GOLD, 48, shotUrgent)}
@@ -635,16 +658,14 @@ function LeagueEditor({ league, onSave, onClose }) {
 export default function App({ user, uid, onSignOut }) {
   const DB_PATH     = userPath(uid, "player_data");
   const LEAGUE_PATH = userPath(uid, "overlay_config/league");
+  const SPORT_PATH  = userPath(uid, "sport");
   const LOGO_KEY_A  = logoKey("teamA", uid);
   const LOGO_KEY_B  = logoKey("teamB", uid);
 
   const [view, setView] = useState("home");
-  const [state, setState] = useState({
-    teamA: { name: "HOME", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#E86A3A" },
-    teamB: { name: "AWAY", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#2FA8DC" },
-    quarter: 1, clockTenths: 6000, isRunning: false,
-    shotClockTenths: 240, shotRunning: false, possession: null, jumpBall: false,
-  });
+  // Placeholder until the server's first stateUpdate lands (milliseconds) —
+  // built from the same registry the server uses, so the two can't drift.
+  const [state, setState] = useState(() => initialState(DEFAULT_SPORT));
   const [connected, setConnected] = useState(false);
   const [logoA, setLogoA] = useState(() => localStorage.getItem(LOGO_KEY_A) || "");
   const [logoB, setLogoB] = useState(() => localStorage.getItem(LOGO_KEY_B) || "");
@@ -653,10 +674,14 @@ export default function App({ user, uid, onSignOut }) {
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
   const [copiedWhich, setCopiedWhich] = useState(null);
+  const [savedSport, setSavedSport] = useState(null);
+
+  const sport = getSport(state.sport);
 
   const prevGameClock  = useRef(state.clockTenths);
   const prevShotClock  = useRef(state.shotClockTenths);
-  const prevQuarterRef = useRef(state.quarter);
+  const prevPeriodRef = useRef(state.period);
+  const sportSyncedRef = useRef(false);
 
   useEffect(() => {
     const uA = onValue(ref(db, `${DB_PATH}/teamA/logo`), (snap) => {
@@ -681,6 +706,34 @@ export default function App({ user, uid, onSignOut }) {
   useEffect(() => {
     get(ref(db, DB_PATH)).then(snap => { if (!snap.exists()) setShowImport(true); }).catch(() => {});
   }, [uid]);
+
+  // Which sport this account last chose. Game state lives only in the server's
+  // memory, so a restart (or a Render cold start) brings the room back as the
+  // default sport — this is the durable copy used to put it back.
+  useEffect(() => {
+    let cancelled = false;
+    get(ref(db, SPORT_PATH))
+      .then(snap => { const v = snap.val(); if (!cancelled && isSport(v)) setSavedSport(v); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [uid]);
+
+  // Reconcile once per session: if the live room isn't on this account's saved
+  // sport, switch it. Deliberately one-shot — re-running on every reconnect
+  // could wipe a game the operator switched deliberately in another tab.
+  useEffect(() => {
+    if (!connected || !savedSport || sportSyncedRef.current) return;
+    sportSyncedRef.current = true;
+    if (savedSport !== state.sport) send("setSport", null, savedSport);
+  }, [connected, savedSport, state.sport]);
+
+  const switchSport = (id) => {
+    if (id === state.sport) return;
+    if (!window.confirm(`เปลี่ยนเป็น${getSport(id).label}?\n\nเกมปัจจุบันจะถูกล้างทั้งหมด (ชื่อทีมและสีจะเก็บไว้ให้)`)) return;
+    setSavedSport(id);
+    send("setSport", null, id);
+    set(ref(db, SPORT_PATH), id).catch(console.error);
+  };
 
   const importLegacyData = async () => {
     setImporting(true);
@@ -728,32 +781,38 @@ export default function App({ user, uid, onSignOut }) {
     prevShotClock.current = state.shotClockTenths;
   }, [state.clockTenths, state.shotClockTenths]);
 
+  // Top the teams back up to the timeout allowance for the new period. How many
+  // that is belongs to the sport's rulebook, not here — a sport that doesn't
+  // define it (no per-period allowance) simply opts out.
   useEffect(() => {
-    if (prevQuarterRef.current === state.quarter) return;
-    prevQuarterRef.current = state.quarter;
-    const t = getTimeoutMax(state.quarter);
+    if (prevPeriodRef.current === state.period) return;
+    prevPeriodRef.current = state.period;
+    if (!sport.timeoutsForPeriod) return;
+    const t = sport.timeoutsForPeriod(state.period);
     ["teamA", "teamB"].forEach(key => {
       const cnt = key === "teamA" ? state.teamA.timeouts : state.teamB.timeouts;
       const d = t - cnt;
       if (d > 0) for (let i = 0; i < d; i++) send("timeout", key, 1);
       else if (d < 0) for (let i = 0; i < Math.abs(d); i++) send("timeout", key, -1);
     });
-  }, [state.quarter]);
+  }, [state.period]);
 
   useEffect(() => {
     const kd = (e) => {
       if (e.target.tagName === "INPUT" || view !== "control") return;
+      // Don't fire shortcuts for controls this sport doesn't have — the server
+      // would reject the action anyway, and a dead keypress is confusing.
       switch (e.code) {
-        case "Space": e.preventDefault(); send("clockToggle"); break;
-        case "KeyC":  e.preventDefault(); send("shotClockToggle"); break;
-        case "KeyZ":  e.preventDefault(); send("shotClockSet", null, 24); break;
-        case "KeyX":  e.preventDefault(); send("shotClockSet", null, 14); break;
+        case "Space": if (!sport.caps.clock) return; e.preventDefault(); send("clockToggle"); break;
+        case "KeyC":  if (!sport.caps.shotClock) return; e.preventDefault(); send("shotClockToggle"); break;
+        case "KeyZ":  if (!sport.caps.shotClock) return; e.preventDefault(); send("shotClockSet", null, 24); break;
+        case "KeyX":  if (!sport.caps.shotClock) return; e.preventDefault(); send("shotClockSet", null, 14); break;
         case "KeyH":  e.preventDefault(); playHorn(); break;
       }
     };
     window.addEventListener("keydown", kd);
     return () => window.removeEventListener("keydown", kd);
-  }, [view]);
+  }, [view, sport]);
 
   // The control socket carries the signed-in user's Firebase ID token so the
   // server can verify it and scope every "action" to this account's own room.
@@ -809,10 +868,11 @@ export default function App({ user, uid, onSignOut }) {
           <button onClick={() => setView("home")} style={navBtn({ color: c.dim })}>← HOME</button>
           <div>
             <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 26, letterSpacing: "0.05em", lineHeight: 1 }}>
-              BASKETBALL <span style={{ color: c.dim, fontWeight: 300 }}>SCOREBOARD</span>
+              {sport.labelEn} <span style={{ color: c.dim, fontWeight: 300 }}>SCOREBOARD</span>
             </div>
             <div style={{ ...overline({ fontSize: 9.5, marginTop: 3, letterSpacing: "0.36em" }) }}>LIVE BROADCAST CONTROL</div>
           </div>
+          <SportSwitcher current={state.sport} onSwitch={switchSport} />
         </div>
         <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setLeagueOpen(o => !o)} style={navBtn({ color: c.gold, borderColor: "rgba(216,182,92,0.3)", background: c.goldDim })}>LEAGUE</button>
@@ -858,14 +918,16 @@ export default function App({ user, uid, onSignOut }) {
 
       <div style={{ height: 1, background: c.line, marginBottom: 12, position: "relative" }} />
 
-      <div style={{ position: "relative" }}>
-        <TournamentBridge state={state} send={send} uid={uid} />
-      </div>
+      {sport.caps.tournament && (
+        <div style={{ position: "relative" }}>
+          <TournamentBridge state={state} send={send} uid={uid} />
+        </div>
+      )}
 
       <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 312px 1fr", gap: 12, maxWidth: 1440, margin: "0 auto" }}>
-        <TeamCard team={state.teamA} teamKey="teamA" quarter={state.quarter} logoUrl={logoA} onLogoSave={handleLogoSave} uid={uid} />
+        <TeamCard team={state.teamA} teamKey="teamA" period={state.period} sport={sport} logoUrl={logoA} onLogoSave={handleLogoSave} uid={uid} />
         <CenterCol state={state} />
-        <TeamCard team={state.teamB} teamKey="teamB" quarter={state.quarter} logoUrl={logoB} onLogoSave={handleLogoSave} uid={uid} />
+        <TeamCard team={state.teamB} teamKey="teamB" period={state.period} sport={sport} logoUrl={logoB} onLogoSave={handleLogoSave} uid={uid} />
       </div>
     </div>
   );

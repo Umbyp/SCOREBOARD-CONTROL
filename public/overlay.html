@@ -306,7 +306,7 @@
     updateTeam('a', s.teamA, s.possession === 'teamA');
     updateTeam('b', s.teamB, s.possession === 'teamB');
 
-    document.getElementById('qlabel').textContent = ordinal(s.quarter);
+    document.getElementById('qlabel').textContent = ordinal(s.period);
     document.getElementById('jump').style.display = s.jumpBall ? "block" : "none";
 
     prevState = JSON.parse(JSON.stringify(s));

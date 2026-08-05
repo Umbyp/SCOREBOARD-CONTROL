@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import path from "path";
 import { fileURLToPath } from "url";
 import { jwtVerify, createRemoteJWKSet } from "jose";
+import { getSport, isSport, initialState, DEFAULT_SPORT } from "./shared/sports/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,21 +31,10 @@ const io = new Server(server, {
 // longer a single shared gameState — everything below is per-uid.
 const gameStates = new Map();
 
-function createEntry(uid) {
+function createEntry(uid, sport = DEFAULT_SPORT) {
   return {
     uid,
-    data: {
-      teamA: { name: "HOME", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#FF6B35" },
-      teamB: { name: "AWAY", score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: "#00D4FF" },
-      quarter: 1,
-      clockTenths: 6000,
-      lastClockSet: 6000,
-      isRunning: false,
-      shotClockTenths: 240,
-      shotRunning: false,
-      possession: null,
-      jumpBall: false,
-    },
+    data: initialState(sport),
     clockInterval: null,
     shotInterval: null,
     lastClockTick: Date.now(),
@@ -104,6 +94,24 @@ const TEAM_ACTIONS = new Set([
   "score", "foul", "techFoul", "teamFoul", "teamFoulReset",
   "timeout", "teamName", "teamColor",
 ]);
+
+// Actions that exist outside any one sport's rulebook, so they are checked
+// against the registry rather than against the active sport's action list.
+const GLOBAL_ACTIONS = new Set(["setSport"]);
+
+/**
+ * A brand-new game of `sport`, carrying over only who is playing. The operator
+ * typed those names and picked those colours; wiping them on every reset (or
+ * on a sport switch) is pure annoyance, and neither is tied to the rules.
+ */
+function freshGame(sport, previous) {
+  const data = initialState(sport);
+  for (const key of TEAM_KEYS) {
+    data[key].name = previous?.[key]?.name ?? data[key].name;
+    data[key].color = previous?.[key]?.color ?? data[key].color;
+  }
+  return data;
+}
 
 const CLOCK_MAX_TENTHS = 59990; // 99:59.9
 const SHOT_MAX_TENTHS = 990; // 99.0s
@@ -210,6 +218,13 @@ io.on("connection", (socket) => {
 
     const entry = getEntry(socket.data.uid);
     const gameState = entry.data;
+
+    // Second gate: the action must exist in the *active sport's* rulebook.
+    // Hiding a button in the UI is not enough — a stale tab or a hand-crafted
+    // socket frame could still send "shotClockSet" during a badminton match,
+    // which would write a field that sport's state doesn't have.
+    if (!GLOBAL_ACTIONS.has(type) && !getSport(gameState.sport).actions.has(type)) return;
+
     entry.lastActivityAt = Date.now();
 
     switch (type) {
@@ -314,13 +329,13 @@ io.on("connection", (socket) => {
         );
         break;
 
-      case "quarter":
-        gameState.quarter = int(value, 1, 20, gameState.quarter);
+      case "period":
+        gameState.period = int(value, 1, 20, gameState.period);
         break;
-      case "newQuarter":
+      case "newPeriod":
         stopClock(entry);
         stopShot(entry);
-        gameState.quarter = int(value, 1, 20, gameState.quarter);
+        gameState.period = int(value, 1, 20, gameState.period);
         gameState.clockTenths = gameState.lastClockSet;
         gameState.isRunning = false;
         gameState.shotClockTenths = 240;
@@ -335,13 +350,20 @@ io.on("connection", (socket) => {
       case "resetGame":
         stopClock(entry);
         stopShot(entry);
-        entry.data = {
-          teamA: { name: gameState.teamA.name, score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: gameState.teamA.color },
-          teamB: { name: gameState.teamB.name, score: 0, fouls: 0, teamFouls: 0, techFouls: 0, timeouts: 2, color: gameState.teamB.color },
-          quarter: 1, clockTenths: 6000, lastClockSet: 6000, isRunning: false,
-          shotClockTenths: 240, shotRunning: false, possession: null, jumpBall: false,
-        };
+        entry.data = freshGame(gameState.sport, gameState);
         break;
+
+      // Switching sport is a full game reset by design — the two rulebooks
+      // don't share a state shape, so there is nothing meaningful to carry
+      // over except who is playing. The client confirms with the operator
+      // before sending this.
+      case "setSport": {
+        if (!isSport(value) || value === gameState.sport) break;
+        stopClock(entry);
+        stopShot(entry);
+        entry.data = freshGame(value, gameState);
+        break;
+      }
     }
     broadcast(entry);
   };

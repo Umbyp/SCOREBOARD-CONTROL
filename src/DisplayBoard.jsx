@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import { db } from "./firebase";
 import { ref, onValue } from "firebase/database";
 import { c as tok, font, r, overline, btn, FONT_IMPORT } from "./theme";
+import { initialState, DEFAULT_SPORT } from "../shared/sports/index.js";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 const LEAGUE_DEFAULT = { logo: "", line1: "BASKETBALL", line2: "THAI LEAGUE", year: "2026" };
@@ -213,12 +214,9 @@ export default function DisplayBoard({ uid, onBack = () => { window.location.hre
   const DB_PATH     = uid ? userPath(uid, "player_data") : null;
   const LEAGUE_PATH = uid ? userPath(uid, "overlay_config/league") : null;
 
-  const [state, setState] = useState({
-    teamA: { name: "HOME", score: 0, teamFouls: 0, timeouts: 2, color: "#E86A3A" },
-    teamB: { name: "AWAY", score: 0, teamFouls: 0, timeouts: 2, color: "#2FA8DC" },
-    quarter: 1, clockTenths: 6000, isRunning: false,
-    shotClockTenths: 240, shotRunning: false, possession: null, jumpBall: false,
-  });
+  // Placeholder until the first broadcast arrives — same registry the server
+  // builds its state from, so the two shapes can't drift apart.
+  const [state, setState] = useState(() => initialState(DEFAULT_SPORT));
 
   const [fbA, setFbA] = useState({ name: "HOME", logo: "", players: defaultPlayers() });
   const [fbB, setFbB] = useState({ name: "AWAY", logo: "", players: defaultPlayers() });
@@ -278,7 +276,7 @@ export default function DisplayBoard({ uid, onBack = () => { window.location.hre
     );
   }
 
-  const { teamA, teamB, quarter, clockTenths, isRunning, shotClockTenths, possession, jumpBall } = state;
+  const { teamA, teamB, period, clockTenths, isRunning, shotClockTenths, possession, jumpBall } = state;
   const shotSec    = shotClockTenths / 10;
   const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
   const shotColor  = shotUrgent ? RED : GOLD;
@@ -337,7 +335,7 @@ export default function DisplayBoard({ uid, onBack = () => { window.location.hre
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "0 20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: -6 }}>
               <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 30, color: GOLD, letterSpacing: "0.06em" }}>
-                {quarter <= 4 ? `PERIOD ${quarter}` : `OT ${quarter - 4}`}
+                {period <= 4 ? `PERIOD ${period}` : `OT ${period - 4}`}
               </div>
               <div style={{ ...overline({ fontSize: 13, color: isRunning ? LIVE : currentTheme.textDim, letterSpacing: "0.16em" }),
                 background: isRunning ? tok.liveDim : currentTheme.stripe, padding: "4px 12px", borderRadius: r.sm }}>
