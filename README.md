@@ -117,6 +117,54 @@ http://localhost:5173
 
 ---
 
+## 🔥 ตั้งค่า Firebase (จำเป็นสำหรับระบบ Login / หลายผู้ใช้)
+
+ระบบใช้ Firebase Authentication + Realtime Database เพื่อให้แต่ละบัญชีมีการแข่งของตัวเองแยกกัน
+(ข้อมูลทุกอย่างอยู่ใต้ `users/{uid}/...`)
+
+**โปรเจกต์ปัจจุบันตั้งค่าครบแล้ว** — ส่วนนี้จำเป็นเฉพาะตอนย้ายไป Firebase project ใหม่
+
+### 1. เปิด Email/Password sign-in
+
+Firebase Console → **Authentication** → **Sign-in method** → **Email/Password** → Enable → Save
+
+> ถ้าข้ามขั้นนี้ ตอนสมัครสมาชิกจะขึ้น error `auth/configuration-not-found`
+
+### 2. Publish Database Rules
+
+Rules อยู่ในไฟล์ [`database.rules.json`](database.rules.json) — อ่านได้ทุกคน (สำหรับหน้า Arena Display
+และ OBS overlay ที่ไม่ต้องล็อกอิน) แต่เขียนได้เฉพาะเจ้าของ uid นั้น
+
+deploy ผ่าน CLI:
+```bash
+npx firebase login
+```
+```bash
+npx firebase deploy --only database
+```
+
+หรือทำมือ: Console → **Realtime Database** → **Rules** → วางเนื้อหาจาก `database.rules.json` → **Publish**
+
+> ⚠️ ถ้ายังไม่ publish rules ฐานข้อมูลจะเปิดให้ใครก็เขียนทับข้อมูลการแข่งได้
+
+### 3. ใส่ค่า config ของโปรเจกต์ใหม่
+
+แก้ `firebaseConfig` ใน [`src/firebase.js`](src/firebase.js) และ project id ใน `.firebaserc`
+
+### ตรวจสอบว่าตั้งค่าครบหรือยัง (ไม่แตะข้อมูลจริง)
+
+```bash
+curl -s "https://identitytoolkit.googleapis.com/v1/projects?key=<WEB_API_KEY>"
+```
+ได้ `CONFIGURATION_NOT_FOUND` = ยังไม่ได้เปิด Authentication · ได้ JSON ที่มี `authorizedDomains` = เปิดแล้ว
+
+```bash
+curl -s -X PUT -d 'null' "<DATABASE_URL>/users/__probe__/x.json"
+```
+ได้ `Permission denied` = rules ถูกต้องแล้ว · ได้ `null` = rules ยังเปิดโล่ง (ค่า `null` ไม่สร้างข้อมูลใหม่)
+
+---
+
 ## 🎮 วิธีใช้ Control Panel
 
 | ส่วน | การใช้งาน |
