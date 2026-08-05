@@ -6,7 +6,8 @@
   "scripts": {
     "server": "node server.js",
     "client": "vite",
-    "dev": "concurrently \"node server.js\" \"vite\""
+    "dev": "concurrently \"node server.js\" \"vite\"",
+    "test": "node --test shared/sports/"
   },
   "dependencies": {
     "concurrently": "^8.2.0",

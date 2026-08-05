@@ -92,7 +92,7 @@ function broadcast(entry) { io.to(entry.uid).emit("stateUpdate", entry.data); }
 const TEAM_KEYS = new Set(["teamA", "teamB"]);
 const TEAM_ACTIONS = new Set([
   "score", "foul", "techFoul", "teamFoul", "teamFoulReset",
-  "timeout", "teamName", "teamColor",
+  "timeout", "teamName", "partnerName", "teamColor",
 ]);
 
 // Actions that exist outside any one sport's rulebook, so they are checked
@@ -223,14 +223,21 @@ io.on("connection", (socket) => {
     // Hiding a button in the UI is not enough — a stale tab or a hand-crafted
     // socket frame could still send "shotClockSet" during a badminton match,
     // which would write a field that sport's state doesn't have.
-    if (!GLOBAL_ACTIONS.has(type) && !getSport(gameState.sport).actions.has(type)) return;
+    const sport = getSport(gameState.sport);
+    if (!GLOBAL_ACTIONS.has(type) && !sport.actions.has(type)) return;
 
     entry.lastActivityAt = Date.now();
 
     switch (type) {
-      case "score":
-        gameState[team].score = clamp(gameState[team].score + int(value, -99, 99), 0, 999);
+      case "score": {
+        const delta = int(value, -99, 99);
+        gameState[team].score = clamp(gameState[team].score + delta, 0, 999);
+        // Rally sports end a game (and hand over serve) on the point itself.
+        // Only a point *scored* triggers that — a −1 correction must not flip
+        // the serve or hand out a game.
+        if (delta > 0) sport.onScore?.(gameState, team);
         break;
+      }
       case "foul":
         gameState[team].fouls = clamp(gameState[team].fouls + int(value, -6, 6), 0, 6);
         break;
@@ -248,6 +255,15 @@ io.on("connection", (socket) => {
         break;
       case "teamName":
         gameState[team].name = cleanName(value, gameState[team].name);
+        break;
+      case "partnerName":
+        gameState[team].partner = cleanName(value, gameState[team].partner);
+        break;
+      case "serve":
+        gameState.serve = TEAM_KEYS.has(value) ? value : null;
+        break;
+      case "setDoubles":
+        gameState.doubles = !gameState.doubles;
         break;
       case "teamColor":
         gameState[team].color = cleanColor(value, gameState[team].color);
