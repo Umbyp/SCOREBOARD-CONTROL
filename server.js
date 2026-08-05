@@ -49,13 +49,22 @@ function getEntry(uid) {
 
 function startClock(entry) {
   if (entry.clockInterval) return;
+  // Football's clock runs up and carries on into stoppage time — there is no
+  // zero to hit, so it never self-stops; the operator stops it on the whistle.
+  const countsUp = getSport(entry.data.sport).clockDirection === "up";
   entry.lastClockTick = Date.now();
   entry.clockInterval = setInterval(() => {
     const now = Date.now();
     const tenths = (now - entry.lastClockTick) / 100;
     entry.lastClockTick = now;
-    entry.data.clockTenths = Math.max(0, entry.data.clockTenths - tenths);
 
+    if (countsUp) {
+      entry.data.clockTenths = Math.min(CLOCK_MAX_TENTHS, entry.data.clockTenths + tenths);
+      broadcast(entry);
+      return;
+    }
+
+    entry.data.clockTenths = Math.max(0, entry.data.clockTenths - tenths);
     if (entry.data.clockTenths <= 0) {
       stopClock(entry);
       entry.data.isRunning = false;
@@ -93,6 +102,7 @@ const TEAM_KEYS = new Set(["teamA", "teamB"]);
 const TEAM_ACTIONS = new Set([
   "score", "foul", "techFoul", "teamFoul", "teamFoulReset",
   "timeout", "teamName", "partnerName", "teamColor",
+  "yellowCard", "redCard",
 ]);
 
 // Actions that exist outside any one sport's rulebook, so they are checked
@@ -258,6 +268,12 @@ io.on("connection", (socket) => {
         break;
       case "partnerName":
         gameState[team].partner = cleanName(value, gameState[team].partner);
+        break;
+      case "yellowCard":
+        gameState[team].yellowCards = clamp((gameState[team].yellowCards || 0) + int(value, -20, 20), 0, 20);
+        break;
+      case "redCard":
+        gameState[team].redCards = clamp((gameState[team].redCards || 0) + int(value, -20, 20), 0, 20);
         break;
       case "serve":
         gameState.serve = TEAM_KEYS.has(value) ? value : null;

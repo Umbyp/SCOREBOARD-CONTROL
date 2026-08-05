@@ -46,9 +46,9 @@ const playBuzzer = () => {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────
-function formatGameClock(tenths) {
+function formatGameClock(tenths, showTenths = true) {
   const t = Math.max(0, tenths);
-  if (t > 600) {
+  if (t > 600 || !showTenths) {
     const s = Math.floor(t / 10);
     return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
   }
@@ -220,6 +220,20 @@ function GamesWonPips({ count, max, color }) {
   );
 }
 
+// ─── Card pips (football) ─────────────────────────────────────
+const CARD_YELLOW = "#E3C038", CARD_RED = "#D2453C";
+function CardPips({ count, color, max = 5 }) {
+  return (
+    <div style={{ display: "flex", gap: 5 }}>
+      {Array.from({ length: max }).map((_, i) => (
+        <div key={i} style={{ width: 11, height: 15, borderRadius: 2,
+          background: i < count ? color : "rgba(255,255,255,0.05)",
+          border: `1px solid ${i < count ? color : c.line}`, transition: "all .18s" }} />
+      ))}
+    </div>
+  );
+}
+
 // ─── Editable name line ──────────────────────────────────────
 // Used for the team/player name and, in doubles, the partner underneath it.
 function NameLine({ value, color, size, action, teamKey }) {
@@ -318,6 +332,32 @@ function TeamCard({ team, teamKey, period, sport, state, logoUrl, onLogoSave, ui
               <div style={readout(28, team.gamesWon > 0 ? c.gold : c.dim, { fontWeight: 700 })}>{team.gamesWon}</div>
             </div>
             <GamesWonPips count={team.gamesWon} max={Math.ceil(sport.maxPeriods / 2)} color={color} />
+          </StatBlock>
+        )}
+
+        {caps.cards && (
+          <StatBlock danger={team.redCards > 0} warn={team.yellowCards >= 3}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+              <div style={overline()}>ใบเหลือง</div>
+              <div style={readout(28, team.yellowCards > 0 ? CARD_YELLOW : c.dim, { fontWeight: 700 })}>{team.yellowCards || 0}</div>
+            </div>
+            <CardPips count={team.yellowCards || 0} color={CARD_YELLOW} />
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              <button onClick={() => send("yellowCard", teamKey, 1)} className="press" style={{ ...btn(CARD_YELLOW, { active: true }), flex: 1, fontSize: 13, padding: "8px 0" }}>+ ใบเหลือง</button>
+              <button onClick={() => send("yellowCard", teamKey, -1)} disabled={(team.yellowCards || 0) <= 0} className="press" style={{ ...btn("neutral"), fontSize: 13, padding: "8px 13px", opacity: (team.yellowCards || 0) <= 0 ? 0.3 : 1 }}>−1</button>
+            </div>
+
+            <div style={{ height: 1, background: c.line, margin: "12px 0" }} />
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9 }}>
+              <div style={overline()}>ใบแดง</div>
+              <div style={readout(28, team.redCards > 0 ? CARD_RED : c.dim, { fontWeight: 700 })}>{team.redCards || 0}</div>
+            </div>
+            <CardPips count={team.redCards || 0} color={CARD_RED} max={3} />
+            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+              <button onClick={() => send("redCard", teamKey, 1)} className="press" style={{ ...btn("danger"), flex: 1, fontSize: 13, padding: "8px 0" }}>+ ใบแดง</button>
+              <button onClick={() => send("redCard", teamKey, -1)} disabled={(team.redCards || 0) <= 0} className="press" style={{ ...btn("neutral"), fontSize: 13, padding: "8px 13px", opacity: (team.redCards || 0) <= 0 ? 0.3 : 1 }}>−1</button>
+            </div>
           </StatBlock>
         )}
 
@@ -490,6 +530,69 @@ function CenterCol({ state }) {
   );
 }
 
+// ─── Center Column · football ─────────────────────────────────
+// The clock runs up and keeps going past the end of the half, so "over time"
+// is shown as a state rather than as an expiry the way basketball treats 0:00.
+function CenterColFootball({ state, sport }) {
+  const { clockTenths, isRunning, period } = state;
+  const target = sport.periodStart(period) + sport.periodLength;
+  const overTime = clockTenths >= target;
+  const stoppage = Math.max(0, Math.floor((clockTenths - target) / 600));
+
+  const mini = (tone) => ({ ...btn(tone), fontSize: 11, padding: "7px 0", position: "relative" });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={panel({ padding: 16, border: `1px solid ${overTime ? c.gold + "66" : c.line}` })}>
+        <div style={{ ...overline({ textAlign: "center", marginBottom: 6, color: overTime ? c.gold : c.mute }) }}>
+          เวลาการแข่งขัน
+        </div>
+        <div style={{ textAlign: "center", ...readout(72, overTime ? c.gold : isRunning ? c.text : c.dim, { fontWeight: 700, lineHeight: 1 }) }}>
+          {formatGameClock(clockTenths, false)}
+        </div>
+        <div style={{ ...overline({ fontSize: 11, marginTop: 6, textAlign: "center", letterSpacing: "0.22em", color: isRunning ? c.live : c.mute }) }}>
+          {sport.periodName(period)} · {isRunning ? "กำลังแข่ง" : "หยุด"}
+          {overTime && ` · +${stoppage}′`}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 14 }}>
+          <button className="press" onClick={() => send("clockToggle")} style={{ ...btn(isRunning ? "danger" : "live", { active: true }), padding: "13px 0", fontSize: 17, position: "relative" }}>
+            {isRunning ? "STOP" : "START"}<Hint>SPC</Hint>
+          </button>
+          <button className="press" onClick={() => send("clockSet", null, sport.periodStart(period))} style={{ ...btn("neutral"), padding: "13px 0", fontSize: 15, color: c.dim }}>
+            ตั้งต้นครึ่งนี้
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 5, marginTop: 9 }}>
+          {[{l:"+1m",v:600},{l:"+10s",v:100},{l:"−10s",v:-100},{l:"−1m",v:-600}].map(p => (
+            <button key={p.l} onClick={() => send("clockAdjust", null, p.v)} style={{ ...btn("neutral"), fontSize: 11, padding: "6px 0", color: c.mute }}>{p.l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={panel({ padding: "12px 14px" })}>
+        <div style={{ ...overline({ fontSize: 9.5, marginBottom: 8 }) }}>ช่วงการแข่งขัน</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5 }}>
+          {Array.from({ length: sport.maxPeriods }, (_, i) => i + 1).map(p => (
+            <button key={p} onClick={() => send("period", null, p)} style={{
+              ...btn("gold", { active: period === p }), padding: "10px 0", fontSize: 13,
+              color: period === p ? c.gold : c.mute }}>{sport.periodName(p)}</button>
+          ))}
+        </div>
+        <button onClick={() => { send("period", null, Math.min(period + 1, sport.maxPeriods)); send("clockSet", null, sport.periodStart(Math.min(period + 1, sport.maxPeriods))); }}
+          className="press" disabled={period >= sport.maxPeriods}
+          style={{ ...mini("gold"), width: "100%", marginTop: 8, padding: "10px 0", fontSize: 12,
+            opacity: period >= sport.maxPeriods ? 0.35 : 1 }}>
+          จบครึ่งนี้ → เริ่ม{period < sport.maxPeriods ? sport.periodName(period + 1) : "—"}
+        </button>
+      </div>
+
+      <button className="press" onClick={playHorn} style={{ ...btn("warn", { active: true }), width: "100%", padding: "13px 0", fontSize: 17, letterSpacing: "0.12em", position: "relative" }}>SOUND HORN<Hint>H</Hint></button>
+    </div>
+  );
+}
+
 // ─── Center Column · rally sports (badminton) ─────────────────
 // No clock at all here: the score is what advances the match, so the centre
 // column is about serve, game number and match status instead.
@@ -583,6 +686,21 @@ function PvDashes({ count, bonus, variant }) {
   );
 }
 
+// Cards on the overlay sit where basketball's foul dashes go — a yellow bar
+// per booking, red ones after them, so a glance reads discipline the same way.
+function PvCards({ team, variant }) {
+  const away = variant === "away";
+  const y = Math.min(team.yellowCards || 0, 4);
+  const rd = Math.min(team.redCards || 0, 2);
+  if (!y && !rd) return <div style={{ height: 7, marginTop: 5 }} />;
+  return (
+    <div style={{ display: "flex", gap: 3, marginTop: 5, flexDirection: away ? "row-reverse" : "row" }}>
+      {Array.from({ length: y }).map((_, i) => <div key={`y${i}`} style={{ width: 5, height: 7, borderRadius: 1, background: "#E3C038" }} />)}
+      {Array.from({ length: rd }).map((_, i) => <div key={`r${i}`} style={{ width: 5, height: 7, borderRadius: 1, background: "#D2453C" }} />)}
+    </div>
+  );
+}
+
 function LeagueSeal({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="1.4">
@@ -629,11 +747,13 @@ function useScorePop(score) {
 }
 
 // ─── Overlay Preview (mirrors public/overlay.html) ────────────
-function OverlayPreview({ state, logoA, logoB, league }) {
+function OverlayPreview({ state, sport, logoA, logoB, league }) {
   const { teamA, teamB, period, clockTenths, shotClockTenths, possession, jumpBall } = state;
+  const caps = sport.caps;
   const shotSec = shotClockTenths / 10;
-  const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
-  const gameTimeUp = clockTenths === 0;
+  const shotUrgent = caps.shotClock && shotSec <= 5 && shotClockTenths > 0;
+  // Counting up, zero is the kick-off, not an expiry.
+  const gameTimeUp = caps.clock && sport.clockDirection !== "up" && clockTenths === 0;
   const nameSize = (n) => n.length <= 6 ? 18 : n.length <= 10 ? 15 : n.length <= 14 ? 12 : 10;
   const foulsA = Math.min(teamA.teamFouls, 5), bonusA = teamA.teamFouls >= 5;
   const foulsB = Math.min(teamB.teamFouls, 5), bonusB = teamB.teamFouls >= 5;
@@ -705,8 +825,9 @@ function OverlayPreview({ state, logoA, logoB, league }) {
           <div style={{ position: "absolute", top: 0, bottom: 0, right: -1.5, width: 3, background: GOLD, boxShadow: "0 0 6px rgba(228,191,85,0.5)", transform: SK, zIndex: 2 }} />
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: nameSize(teamA.name), color: "#17181d", lineHeight: 1, whiteSpace: "nowrap" }}>{teamA.name}</div>
-            <PvDashes count={foulsA} bonus={bonusA} variant="home" />
-            {possession === "teamA" && <div style={{ height: 2, marginTop: 4, width: 28, borderRadius: 2, background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />}
+            {caps.fouls && <PvDashes count={foulsA} bonus={bonusA} variant="home" />}
+            {caps.cards && <PvCards team={teamA} variant="home" />}
+            {caps.possession && possession === "teamA" && <div style={{ height: 2, marginTop: 4, width: 28, borderRadius: 2, background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />}
           </div>
         </div>
 
@@ -726,8 +847,9 @@ function OverlayPreview({ state, logoA, logoB, league }) {
           <div style={{ position: "absolute", top: 0, bottom: 0, left: -1.5, width: 3, background: GOLD, boxShadow: "0 0 6px rgba(228,191,85,0.5)", transform: SKr, zIndex: 2 }} />
           <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
             <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: nameSize(teamB.name), color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.35)", lineHeight: 1, whiteSpace: "nowrap" }}>{teamB.name}</div>
-            <PvDashes count={foulsB} bonus={bonusB} variant="away" />
-            {possession === "teamB" && <div style={{ height: 2, marginTop: 4, width: 28, borderRadius: 2, background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />}
+            {caps.fouls && <PvDashes count={foulsB} bonus={bonusB} variant="away" />}
+            {caps.cards && <PvCards team={teamB} variant="away" />}
+            {caps.possession && possession === "teamB" && <div style={{ height: 2, marginTop: 4, width: 28, borderRadius: 2, background: GOLD, boxShadow: `0 0 6px ${GOLD}` }} />}
           </div>
         </div>
 
@@ -738,10 +860,10 @@ function OverlayPreview({ state, logoA, logoB, league }) {
           <div style={{ width: 48, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" }}>
             {jumpBall && <div style={{ position: "absolute", top: 2, fontFamily: font.label, fontWeight: 800, fontSize: 7, letterSpacing: "0.16em", color: GOLD }}>JUMP</div>}
             <div style={{ fontFamily: font.label, fontWeight: 700, fontSize: 7.5, letterSpacing: "0.14em", color: c.mute, marginBottom: 1 }}>PERIOD</div>
-            <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: 16, color: GOLD, lineHeight: 1 }}>{ordinal(period)}</div>
+            <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: 16, color: GOLD, lineHeight: 1 }}>{sport.periodShort ? sport.periodShort(period) : ordinal(period)}</div>
           </div>
-          {infoCell("GAME", formatGameClock(clockTenths), gameTimeUp ? c.danger : "#fff", 66, gameTimeUp)}
-          {infoCell("SHOT", formatShotClock(shotClockTenths), shotUrgent ? c.danger : GOLD, 48, shotUrgent)}
+          {caps.clock && infoCell("GAME", formatGameClock(clockTenths, sport.clockShowsTenths), gameTimeUp ? c.danger : "#fff", 66, gameTimeUp)}
+          {caps.shotClock && infoCell("SHOT", formatShotClock(shotClockTenths), shotUrgent ? c.danger : GOLD, 48, shotUrgent)}
         </div>
       </div>
     </div>
@@ -1163,7 +1285,7 @@ export default function App({ user, uid, onSignOut }) {
       <div style={{ position: "relative", marginBottom: 12 }}>
         <div style={{ ...overline({ fontSize: 9.5, marginBottom: 4 }) }}>OBS OVERLAY PREVIEW</div>
         {sport.caps.clock
-          ? <OverlayPreview state={state} logoA={logoA} logoB={logoB} league={league} />
+          ? <OverlayPreview state={state} sport={sport} logoA={logoA} logoB={logoB} league={league} />
           : <OverlayPreviewRally state={state} sport={sport} logoA={logoA} logoB={logoB} league={league} />}
       </div>
 
@@ -1177,7 +1299,9 @@ export default function App({ user, uid, onSignOut }) {
 
       <div style={{ position: "relative", display: "grid", gridTemplateColumns: "1fr 312px 1fr", gap: 12, maxWidth: 1440, margin: "0 auto" }}>
         <TeamCard team={state.teamA} teamKey="teamA" period={state.period} sport={sport} state={state} logoUrl={logoA} onLogoSave={handleLogoSave} uid={uid} />
-        {sport.caps.clock ? <CenterCol state={state} /> : <CenterColRally state={state} sport={sport} />}
+        {sport.caps.shotClock ? <CenterCol state={state} />
+          : sport.caps.clock ? <CenterColFootball state={state} sport={sport} />
+          : <CenterColRally state={state} sport={sport} />}
         <TeamCard team={state.teamB} teamKey="teamB" period={state.period} sport={sport} state={state} logoUrl={logoB} onLogoSave={handleLogoSave} uid={uid} />
       </div>
     </div>

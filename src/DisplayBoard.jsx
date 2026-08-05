@@ -72,9 +72,9 @@ const THEMES = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────
-function formatGameClock(tenths) {
+function formatGameClock(tenths, showTenths = true) {
   const t = Math.max(0, tenths);
-  if (t > 600) {
+  if (t > 600 || !showTenths) {
     const totalSec = Math.floor(t / 10);
     return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, "0")}`;
   }
@@ -190,13 +190,17 @@ function SidePanel({ team, players, teamName, logo, align, theme }) {
   );
 }
 
-// ─── Arena face · rally sports (badminton) ────────────────────
-// A rally sport has no clock and no roster of five to police, so the arena
-// screen is just the two sides, the running score and who is serving.
-function RallyArena({ state, sport, theme, logoA, logoB, flashA, flashB }) {
-  const { teamA, teamB, period, serve, doubles, matchOver } = state;
+// ─── Arena face · sports without a five-a-side roster panel ───
+// Badminton and football both want the same shape: two sides, the score, and
+// one status line — no player/foul columns. What differs is what hangs under
+// each score (games won vs cards) and whether there is a clock on top.
+function CenteredArena({ state, sport, theme, logoA, logoB, flashA, flashB }) {
+  const { teamA, teamB, period, serve, doubles, matchOver, clockTenths, isRunning } = state;
+  const caps = sport.caps;
   const gamesNeeded = Math.ceil(sport.maxPeriods / 2);
   const winner = teamA.gamesWon > teamB.gamesWon ? teamA : teamB;
+  const target = caps.clock ? sport.periodStart(period) + sport.periodLength : 0;
+  const overTime = caps.clock && clockTenths >= target;
 
   const side = (team, key, logo, flash, align) => {
     const serving = serve === key;
@@ -224,14 +228,33 @@ function RallyArena({ state, sport, theme, logoA, logoB, flashA, flashB }) {
             color: team.color, fontVariantNumeric: "tabular-nums", animation: flash ? "score-pop .3s ease" : "none" }}>{team.score}</div>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-          {Array.from({ length: gamesNeeded }).map((_, i) => (
-            <div key={i} style={{ width: 40, height: 10, borderRadius: 4,
-              background: i < team.gamesWon ? GOLD : theme.stripe,
-              border: `1px solid ${i < team.gamesWon ? GOLD : theme.border}`, transition: "all .25s" }} />
-          ))}
-        </div>
-        <div style={{ ...overline({ fontSize: 11, color: theme.textDim, letterSpacing: "0.22em", marginTop: 8 }) }}>เกมที่ชนะ</div>
+        {caps.periodWins && (<>
+          <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
+            {Array.from({ length: gamesNeeded }).map((_, i) => (
+              <div key={i} style={{ width: 40, height: 10, borderRadius: 4,
+                background: i < team.gamesWon ? GOLD : theme.stripe,
+                border: `1px solid ${i < team.gamesWon ? GOLD : theme.border}`, transition: "all .25s" }} />
+            ))}
+          </div>
+          <div style={{ ...overline({ fontSize: 11, color: theme.textDim, letterSpacing: "0.22em", marginTop: 8 }) }}>เกมที่ชนะ</div>
+        </>)}
+
+        {caps.cards && (
+          <div style={{ display: "flex", gap: 18, marginTop: 20, alignItems: "center" }}>
+            {[["ใบเหลือง", team.yellowCards || 0, "#E3C038"], ["ใบแดง", team.redCards || 0, RED]].map(([label, n, col]) => (
+              <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div style={{ display: "flex", gap: 4, minHeight: 22, alignItems: "center" }}>
+                  {n === 0
+                    ? <div style={{ width: 15, height: 21, borderRadius: 3, border: `1px solid ${theme.border}`, background: theme.stripe }} />
+                    : Array.from({ length: Math.min(n, 5) }).map((_, i) => (
+                        <div key={i} style={{ width: 15, height: 21, borderRadius: 3, background: col }} />
+                      ))}
+                </div>
+                <div style={{ ...overline({ fontSize: 10, color: theme.textDim, letterSpacing: "0.18em" }) }}>{label} {n > 5 ? `×${n}` : ""}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -242,10 +265,19 @@ function RallyArena({ state, sport, theme, logoA, logoB, flashA, flashB }) {
         <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 34, color: GOLD, letterSpacing: "0.06em" }}>
           {matchOver ? `${winner.name} ชนะ` : sport.periodName(period)}
         </div>
-        <div style={{ ...overline({ fontSize: 13, color: matchOver ? GOLD : theme.textDim, letterSpacing: "0.2em", marginTop: 6 }),
-          background: matchOver ? "rgba(228,191,85,0.12)" : theme.stripe, padding: "4px 14px", borderRadius: r.sm }}>
-          {matchOver ? "จบแมตช์" : `${doubles ? "ประเภทคู่" : "ประเภทเดี่ยว"} · ${teamA.gamesWon} – ${teamB.gamesWon}`}
+        <div style={{ ...overline({ fontSize: 13, color: matchOver || overTime ? GOLD : theme.textDim, letterSpacing: "0.2em", marginTop: 6 }),
+          background: matchOver || overTime ? "rgba(228,191,85,0.12)" : theme.stripe, padding: "4px 14px", borderRadius: r.sm }}>
+          {caps.clock
+            ? `${isRunning ? "กำลังแข่ง" : "หยุด"}${overTime ? " · ทดเวลา" : ""}`
+            : matchOver ? "จบแมตช์" : `${doubles ? "ประเภทคู่" : "ประเภทเดี่ยว"} · ${teamA.gamesWon} – ${teamB.gamesWon}`}
         </div>
+
+        {caps.clock && (
+          <div style={{ fontFamily: font.num, fontSize: "clamp(64px,9vw,120px)", fontWeight: 700, lineHeight: 1.1,
+            color: overTime ? GOLD : theme.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
+            {formatGameClock(clockTenths, sport.clockShowsTenths)}
+          </div>
+        )}
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center" }}>
@@ -393,8 +425,8 @@ export default function DisplayBoard({ uid, onBack = () => { window.location.hre
 
       {/* MAIN — the rally layout replaces the whole grid; the shell above and
           the callout below are shared by every sport. */}
-      {!sport.caps.clock ? (
-        <RallyArena state={state} sport={sport} theme={currentTheme}
+      {!sport.caps.fouls ? (
+        <CenteredArena state={state} sport={sport} theme={currentTheme}
           logoA={fbA.logo} logoB={fbB.logo} flashA={flashA} flashB={flashB} />
       ) : (
       <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr minmax(360px, 38vw) 1fr" }}>
