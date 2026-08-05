@@ -255,7 +255,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <script>
-  const SERVER_URL = "https://scoreboard-control.onrender.com";
+  // In production this page is also served from Vercel, where the socket
+  // server is a different host — hence the hardcoded URL. Served from a dev
+  // machine it is the game server itself, so talk to our own origin instead;
+  // otherwise a local overlay silently shows the live production game.
+  const IS_LOCAL = ["localhost", "127.0.0.1"].includes(location.hostname);
+  const SERVER_URL = IS_LOCAL ? location.origin : "https://scoreboard-control.onrender.com";
 
   // Read-only viewer: which account's game to show, from ?u=<uid> in this
   // overlay's own URL (the same uid the operator's "Copy Overlay Link" button
@@ -292,6 +297,13 @@
   function fmtShot(t) { t = Math.max(0, t); return t > 100 ? Math.ceil(t / 10) : Math.floor(t / 10) + "." + Math.floor(t % 10); }
   function ordinal(q) { return q > 4 ? "OT" + (q - 4) : (["1ST","2ND","3RD","4TH"][q - 1] || ("Q" + q)); }
 
+  // This page is served straight from /public, so it can't import the sport
+  // registry the way the React app does. It reads the shape of the state
+  // instead of matching on sport names — a payload with no clock is a rally
+  // sport, and that stays true for any sport added later.
+  const hasClock = (s) => typeof s.clockTenths === "number";
+  const hasFouls = (s) => typeof s.teamA.teamFouls === "number";
+
   // ── Main render ──
   function render(s) {
     if (!s || !s.teamA) return;
@@ -303,48 +315,73 @@
       if (s.teamB.timeouts < prevState.teamB.timeouts) showTO(s.teamB.name, s.teamB.color);
     }
 
-    updateTeam('a', s.teamA, s.possession === 'teamA');
-    updateTeam('b', s.teamB, s.possession === 'teamB');
+    const rally = !hasClock(s);
 
-    document.getElementById('qlabel').textContent = ordinal(s.period);
-    document.getElementById('jump').style.display = s.jumpBall ? "block" : "none";
+    // A rally sport highlights whoever is serving, exactly where basketball
+    // shows the possession arrow.
+    updateTeam('a', s.teamA, rally ? s.serve === 'teamA' : s.possession === 'teamA', s);
+    updateTeam('b', s.teamB, rally ? s.serve === 'teamB' : s.possession === 'teamB', s);
+
+    // Clock cells have nothing to show without a clock.
+    document.getElementById('game').style.display = rally ? "none" : "";
+    document.getElementById('shot').style.display = rally ? "none" : "";
+
+    const periodCell = document.getElementById('period');
+    periodCell.querySelector('.info-lbl').textContent = rally ? (s.matchOver ? "RESULT" : "GAME") : "PERIOD";
+    document.getElementById('qlabel').textContent = rally
+      ? (s.matchOver ? `${s.teamA.gamesWon}–${s.teamB.gamesWon}` : s.period)
+      : ordinal(s.period);
+    document.getElementById('jump').style.display = (!rally && s.jumpBall) ? "block" : "none";
 
     prevState = JSON.parse(JSON.stringify(s));
     localState = s;
     lastUpdateTimestamp = Date.now();
   }
 
-  function updateTeam(id, team, isPoss) {
+  function updateTeam(id, team, highlight, s) {
     document.getElementById(`lc-${id}`).style.setProperty('--tc', team.color);
     document.getElementById(`panel-${id}`).style.setProperty('--tc', team.color);
 
     document.getElementById(`sc-${id}`).textContent = team.score;
 
     const nmEl = document.getElementById(`nm-${id}`);
-    nmEl.textContent = team.name;
-    const l = team.name.length;
+    // In doubles both names share the panel.
+    const label = (s && s.doubles && team.partner) ? `${team.name} / ${team.partner}` : team.name;
+    nmEl.textContent = label;
+    const l = label.length;
     nmEl.style.fontSize = l <= 6 ? "28px" : l <= 10 ? "24px" : l <= 14 ? "19px" : "15px";
-    nmEl.classList.toggle('poss', isPoss);
+    nmEl.classList.toggle('poss', highlight);
 
     // keep the no-logo placeholder letter in sync with the live team name
     document.getElementById(`logo-ph-${id}`).textContent = (team.name || (id === 'a' ? 'H' : 'A'))[0];
 
-    // foul dashes (5)
-    const fouls = Math.min(team.teamFouls || 0, 5);
-    const bonus = (team.teamFouls || 0) >= 5;
+    // The dash row carries fouls in basketball and games won in a rally sport.
     const fd = document.getElementById(`fd-${id}`);
     fd.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
-      const d = document.createElement('div');
-      d.className = 'dash' + (i < fouls ? (bonus ? ' on bonus' : ' on') : '');
-      fd.appendChild(d);
+    if (s && hasFouls(s)) {
+      const fouls = Math.min(team.teamFouls || 0, 5);
+      const bonus = (team.teamFouls || 0) >= 5;
+      for (let i = 0; i < 5; i++) {
+        const d = document.createElement('div');
+        d.className = 'dash' + (i < fouls ? (bonus ? ' on bonus' : ' on') : '');
+        fd.appendChild(d);
+      }
+    } else if (typeof team.gamesWon === "number") {
+      for (let i = 0; i < 2; i++) {
+        const d = document.createElement('div');
+        d.className = 'dash' + (i < team.gamesWon ? ' on bonus' : '');
+        fd.appendChild(d);
+      }
     }
 
-    document.getElementById(`poss-${id}`).className = 'possline' + (isPoss ? ' on' : '');
+    document.getElementById(`poss-${id}`).className = 'possline' + (highlight ? ' on' : '');
   }
 
   // ── Clock interpolation ──
   function syncLoop() {
+    // Nothing to interpolate for a sport with no clock — bail before these
+    // reads turn into NaN on screen.
+    if (localState && !hasClock(localState)) { requestAnimationFrame(syncLoop); return; }
     if (localState && localState.isRunning) {
       const elapsed = Date.now() - lastUpdateTimestamp;
       const cur = Math.max(0, localState.clockTenths - Math.floor(elapsed / 100));
