@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import { ref, onValue, update } from "firebase/database";
 import { c, font, r, overline, btn } from "./theme";
+import { useConfirm } from "./ConfirmDialog";
 
 // ── Match Schedule ────────────────────────────────────────────────────────────
 const MATCH_SCHEDULE = {
@@ -121,6 +122,7 @@ function Toggle({ value, onChange }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function TournamentBridge({ state, send, uid }) {
   const TOURNAMENT_PATH = `users/${uid}/tournament_data`;
+  const [askConfirm, confirmDialog] = useConfirm();
 
   // ── Existing state ────────────────────────────────────────────────────────
   const [appData,      setAppData]      = useState(null);
@@ -386,6 +388,8 @@ export default function TournamentBridge({ state, send, uid }) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
+    <>
+    {confirmDialog}
     <div style={{
       background: c.surface,
       border: `1px solid ${c.line}`,
@@ -690,13 +694,12 @@ export default function TournamentBridge({ state, send, uid }) {
 
                 {/* ปุ่มจบเกม FINAL */}
                 <button
-                  onClick={() => {
-                    if (window.confirm(
-                      "ยืนยันจบการแข่งขัน?\n\nสถานะในตารางจะเปลี่ยนเป็น 'จบแล้ว' ทันที\nและนำไปคำนวณ standings / สาย bracket ต่อไป"
-                    )) {
-                      pushToFirebase(true);
-                    }
-                  }}
+                  onClick={() => askConfirm({
+                    title: "ยืนยันจบการแข่งขัน?",
+                    body: "สถานะในตารางจะเปลี่ยนเป็น 'จบแล้ว' ทันที\nและนำไปคำนวณ standings / สาย bracket ต่อไป",
+                    confirmLabel: "จบการแข่งขัน",
+                    onConfirm: () => pushToFirebase(true),
+                  })}
                   disabled={homeScore === null || saveStatus === "saving" || selectedMatch.played}
                   style={{
                     ...btn(selectedMatch.played ? "neutral" : "danger", { active: !selectedMatch.played }),
@@ -748,5 +751,6 @@ export default function TournamentBridge({ state, send, uid }) {
         </div>
       )}
     </div>
+    </>
   );
 }

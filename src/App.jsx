@@ -6,6 +6,7 @@ import { ref, onValue, set, get, update } from "firebase/database";
 import TournamentBridge from "./TournamentBridge";
 import Home from "./Home";
 import PlayerManager from "./PlayerManager";
+import { useConfirm } from "./ConfirmDialog";
 import { c, font, r, shadow, overline, panel, readout, btn, FONT_IMPORT } from "./theme";
 import { SPORTS, getSport, isSport, initialState, DEFAULT_SPORT } from "../shared/sports/index.js";
 
@@ -907,6 +908,7 @@ export default function App({ user, uid, onSignOut }) {
   const [importing, setImporting] = useState(false);
   const [copiedWhich, setCopiedWhich] = useState(null);
   const [savedSport, setSavedSport] = useState(null);
+  const [askConfirm, confirmDialog] = useConfirm();
 
   const sport = getSport(state.sport);
 
@@ -961,10 +963,17 @@ export default function App({ user, uid, onSignOut }) {
 
   const switchSport = (id) => {
     if (id === state.sport) return;
-    if (!window.confirm(`เปลี่ยนเป็น${getSport(id).label}?\n\nเกมปัจจุบันจะถูกล้างทั้งหมด (ชื่อทีมและสีจะเก็บไว้ให้)`)) return;
-    setSavedSport(id);
-    send("setSport", null, id);
-    set(ref(db, SPORT_PATH), id).catch(console.error);
+    askConfirm({
+      title: `เปลี่ยนเป็น${getSport(id).label}?`,
+      body: "เกมปัจจุบันจะถูกล้างทั้งหมด\nชื่อทีมและสีจะเก็บไว้ให้",
+      confirmLabel: `เปลี่ยนเป็น${getSport(id).label}`,
+      tone: "gold",
+      onConfirm: () => {
+        setSavedSport(id);
+        send("setSport", null, id);
+        set(ref(db, SPORT_PATH), id).catch(console.error);
+      },
+    });
   };
 
   const importLegacyData = async () => {
@@ -1084,6 +1093,7 @@ export default function App({ user, uid, onSignOut }) {
 
   return (
     <div onClick={unlockAudio} style={{ minHeight: "100vh", background: c.bg, color: c.text, padding: 16, fontFamily: font.body, position: "relative" }}>
+      {confirmDialog}
       <style>{`
         ${FONT_IMPORT}
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -1123,7 +1133,12 @@ export default function App({ user, uid, onSignOut }) {
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? c.live : c.danger }} />
             {connected ? "CONNECTED" : "OFFLINE"}
           </div>
-          <button className="press" onClick={() => { if (window.confirm("รีเซ็ตเกมทั้งหมด?")) send("resetGame"); }} style={navBtn({ color: c.danger, borderColor: "rgba(222,91,87,0.28)", background: c.dangerDim })}>↺ RESET</button>
+          <button className="press" onClick={() => askConfirm({
+            title: "รีเซ็ตเกมทั้งหมด?",
+            body: "คะแนน นาฬิกา และสถิติทุกอย่างจะกลับไปเริ่มใหม่\nชื่อทีมและสีจะเก็บไว้ให้",
+            confirmLabel: "รีเซ็ตเกม",
+            onConfirm: () => send("resetGame"),
+          })} style={navBtn({ color: c.danger, borderColor: "rgba(222,91,87,0.28)", background: c.dangerDim })}>↺ RESET</button>
           <div style={{ width: 1, height: 20, background: c.line, margin: "0 2px" }} />
           <div style={{ ...overline({ fontSize: 10, color: c.faint, letterSpacing: "0.04em", textTransform: "none" }) }}>{user?.email}</div>
           <button className="press" onClick={onSignOut} style={navBtn({ color: c.mute })}>SIGN OUT</button>
