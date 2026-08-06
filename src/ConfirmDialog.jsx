@@ -38,12 +38,15 @@ function ConfirmDialog({ req, onClose }) {
             marginBottom: 20, whiteSpace: "pre-line" }}>{req.body}</div>
         )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ ...btn("neutral"), padding: "10px 18px", fontSize: 13, color: c.mute }}>
-            ยกเลิก
-          </button>
+          {/* A notice has nothing to decline — one "got it" button, no cancel. */}
+          {!req.notice && (
+            <button onClick={onClose} style={{ ...btn("neutral"), padding: "10px 18px", fontSize: 13, color: c.mute }}>
+              ยกเลิก
+            </button>
+          )}
           <button autoFocus className="press" onClick={() => { req.onConfirm?.(); onClose(); }}
             style={{ ...btn(tone, { active: true }), padding: "10px 22px", fontSize: 13, letterSpacing: "0.06em" }}>
-            {req.confirmLabel || "ยืนยัน"}
+            {req.confirmLabel || (req.notice ? "รับทราบ" : "ยืนยัน")}
           </button>
         </div>
       </div>
@@ -54,6 +57,8 @@ function ConfirmDialog({ req, onClose }) {
 /**
  * Returns [ask, dialog]. Call ask({ title, body, confirmLabel, tone, onConfirm })
  * where you would have called window.confirm(), and render `dialog` once.
+ * Pass `notice: true` for a message with nothing to confirm — the cancel button
+ * is dropped and the remaining button just dismisses.
  */
 export function useConfirm() {
   const [req, setReq] = useState(null);

@@ -60,6 +60,21 @@ function formatShotClock(tenths) {
   return `${Math.floor(t/10)}.${Math.floor(t%10)}`;
 }
 function send(type, team, value) { socket?.emit("action", { type, team, value }); }
+
+// Why the socket refused to connect, in words an operator can act on. Without
+// this the panel only ever said "OFFLINE" — and since send() above is a silent
+// no-op with no socket, every button looked individually broken instead.
+function connectErrorReason(err) {
+  const msg = err?.message || "";
+  // The server rejects the handshake itself (server.js io.use) when the
+  // Firebase ID token fails verification — wrong project id, or a signed-out tab.
+  if (/invalid token/i.test(msg)) return "เซิร์ฟเวอร์ปฏิเสธ token — ลอง SIGN OUT แล้วเข้าใหม่";
+  // A CORS rejection never reaches JS as "CORS"; the browser just fails the
+  // poll. Same string covers a server that is asleep or down.
+  if (/xhr poll error|websocket error|failed to fetch|timeout/i.test(msg))
+    return `ต่อ ${SOCKET_URL} ไม่ได้ — ตรวจ ALLOWED_ORIGINS บนเซิร์ฟเวอร์ หรือเซิร์ฟเวอร์ยังไม่ตื่น`;
+  return msg || "เชื่อมต่อไม่สำเร็จ";
+}
 function getNameFontSize(name = "") {
   const l = name.length;
   return l <= 8 ? 30 : l <= 12 ? 24 : l <= 16 ? 19 : 15;
@@ -1022,6 +1037,7 @@ export default function App({ user, uid, onSignOut }) {
   // built from the same registry the server uses, so the two can't drift.
   const [state, setState] = useState(() => initialState(DEFAULT_SPORT));
   const [connected, setConnected] = useState(false);
+  const [connError, setConnError] = useState("");
   const [logoA, setLogoA] = useState(() => localStorage.getItem(LOGO_KEY_A) || "");
   const [logoB, setLogoB] = useState(() => localStorage.getItem(LOGO_KEY_B) || "");
   const [league, setLeague] = useState(LEAGUE_DEFAULT);
@@ -1083,8 +1099,23 @@ export default function App({ user, uid, onSignOut }) {
     if (savedSport !== state.sport) send("setSport", null, savedSport);
   }, [connected, savedSport, state.sport]);
 
+  // Every mutation happens on the server, so with no socket send() drops the
+  // action on the floor. Asking "are you sure?" first would be a lie — the
+  // operator confirms, the dialog closes, and nothing has happened. Say why.
+  const requireConnection = () => {
+    if (connected) return true;
+    askConfirm({
+      notice: true,
+      tone: "danger",
+      title: "ยังไม่ได้เชื่อมต่อเซิร์ฟเวอร์",
+      body: `${connError || "socket ยังไม่ได้ต่อ"}\n\nระหว่างนี้คำสั่งทุกอย่าง (เปลี่ยนกีฬา คะแนน นาฬิกา) จะยังไม่มีผล จนกว่าป้ายจะกลับเป็น CONNECTED`,
+    });
+    return false;
+  };
+
   const switchSport = (id) => {
     if (id === state.sport) return;
+    if (!requireConnection()) return;
     askConfirm({
       title: `เปลี่ยนเป็น${getSport(id).label}?`,
       body: "เกมปัจจุบันจะถูกล้างทั้งหมด\nชื่อทีมและสีจะเก็บไว้ให้",
@@ -1191,8 +1222,9 @@ export default function App({ user, uid, onSignOut }) {
         catch { cb({ token: null }); }
       },
     });
-    socket.on("connect", () => setConnected(true));
+    socket.on("connect", () => { setConnected(true); setConnError(""); });
     socket.on("disconnect", () => setConnected(false));
+    socket.on("connect_error", (err) => { setConnected(false); setConnError(connectErrorReason(err)); });
     socket.on("stateUpdate", (s) => {
       if (!s?.teamA) return;
       setState({ ...s, teamA: { techFouls: 0, ...s.teamA }, teamB: { techFouls: 0, ...s.teamB } });
@@ -1251,11 +1283,11 @@ export default function App({ user, uid, onSignOut }) {
           <button className="press" onClick={() => copyLink("arena", arenaUrl)} style={navBtn({ color: c.mute })}>
             {copiedWhich === "arena" ? "คัดลอกแล้ว ✓" : "COPY ARENA LINK"}
           </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: r.pill, background: connected ? c.liveDim : c.dangerDim, border: `1px solid ${connected ? "rgba(63,185,139,0.3)" : "rgba(222,91,87,0.3)"}`, ...overline({ fontSize: 10.5, color: connected ? c.live : c.danger, letterSpacing: "0.16em" }) }}>
+          <div title={connected ? "" : connError} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: r.pill, background: connected ? c.liveDim : c.dangerDim, border: `1px solid ${connected ? "rgba(63,185,139,0.3)" : "rgba(222,91,87,0.3)"}`, ...overline({ fontSize: 10.5, color: connected ? c.live : c.danger, letterSpacing: "0.16em" }) }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: connected ? c.live : c.danger }} />
             {connected ? "CONNECTED" : "OFFLINE"}
           </div>
-          <button className="press" onClick={() => askConfirm({
+          <button className="press" onClick={() => requireConnection() && askConfirm({
             title: "รีเซ็ตเกมทั้งหมด?",
             body: "คะแนน นาฬิกา และสถิติทุกอย่างจะกลับไปเริ่มใหม่\nชื่อทีมและสีจะเก็บไว้ให้",
             confirmLabel: "รีเซ็ตเกม",
@@ -1266,6 +1298,16 @@ export default function App({ user, uid, onSignOut }) {
           <button className="press" onClick={onSignOut} style={navBtn({ color: c.mute })}>SIGN OUT</button>
         </div>
       </div>
+
+      {/* Why the panel is OFFLINE. The pill alone sent operators hunting for a
+          broken button, when in fact no button can work without the socket. */}
+      {!connected && connError && (
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 10, marginBottom: 12,
+          padding: "10px 14px", borderRadius: r.md, background: c.dangerDim, border: `1px solid rgba(222,91,87,0.3)` }}>
+          <div style={{ ...overline({ fontSize: 10, color: c.danger, letterSpacing: "0.16em" }) }}>OFFLINE</div>
+          <div style={{ flex: 1, fontSize: 13, color: c.dim, fontFamily: font.body }}>{connError}</div>
+        </div>
+      )}
 
       {/* Import legacy shared data (one-time, manual, opt-in) */}
       {showImport && (
