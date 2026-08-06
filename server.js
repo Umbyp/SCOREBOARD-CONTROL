@@ -13,9 +13,15 @@ const app = express();
 const server = http.createServer(app);
 
 // ✅ FIX 1: ใช้ env var แทน hardcode URL
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",")
-  : ["http://localhost:5173"];
+//
+// A browser's Origin header is always bare — no trailing slash, no spaces —
+// but this env var is typed by hand into a hosting dashboard, where pasting
+// "https://app.example.com/" or "a, b" is the natural thing to do. Either one
+// used to fail the exact-match below and silently reject every connection from
+// the real site, with nothing in the logs to say so. Normalise instead.
+const normaliseOrigin = (o) => o.trim().replace(/\/+$/, "");
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")
+  .split(",").map(normaliseOrigin).filter(Boolean);
 
 const io = new Server(server, {
   cors: {
@@ -438,6 +444,9 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`\n🏀 Basketball Scoreboard`);
   console.log(`========================`);
+  // Printed so a CORS rejection is diagnosable from the host's logs alone —
+  // an origin missing from this list is why a control panel sits on OFFLINE.
+  console.log(`🔓 Allowed origins: ${ALLOWED_ORIGINS.join(", ")}`);
   console.log(`🖥️  Control : http://localhost:5173`);
   console.log(`📺 Overlay  : http://localhost:${PORT}/overlay\n`);
 });
