@@ -1,307 +1,199 @@
-// DisplayBoard.jsx — arena screen · "Broadcast Console" design system
-import { useState, useEffect, useRef } from "react";
+// DisplayBoard.jsx — the arena screen: what goes on the TV, projector or LED
+// wall in the venue.
+//
+// This file owns everything that is true of the screen regardless of sport —
+// the live feed, the venue chrome, and which face to draw. The faces
+// themselves live in ./arena, one per sport, each laid out on the same fixed
+// 1920×1080 stage (see arena/kit.jsx for why it is fixed).
+//
+// Design notes for the venue, which are the reason for most of the code below:
+//   • The board is furniture. Once it is up, nobody should have to touch it,
+//     so the operator chrome fades out (and takes the mouse pointer with it)
+//     a few seconds after the last input and comes back on any movement.
+//   • A screen that blanks mid-match is a failure, so the display holds a
+//     screen wake lock for as long as it is visible.
+//   • It must never show a plausible-looking score it does not actually have.
+//     Until the first broadcast lands there is a "connecting" veil, and the
+//     feed's health is on the board itself, not hidden in a corner of the UI.
+
+import { useState, useEffect, useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import { db } from "./firebase";
 import { ref, onValue } from "firebase/database";
 import { c as tok, font, r, overline, btn, FONT_IMPORT } from "./theme";
 import { initialState, getSport, DEFAULT_SPORT } from "../shared/sports/index.js";
+import { LEAGUE_DEFAULT } from "./league";
+import { Stage, THEMES, Cap, Num, GOLD, RED } from "./arena/kit.jsx";
+import BasketballArena from "./arena/Basketball.jsx";
+import BadmintonArena from "./arena/Badminton.jsx";
+import Football7Arena from "./arena/Football7.jsx";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
-const LEAGUE_DEFAULT = { logo: "", line1: "BASKETBALL", line2: "THAI LEAGUE", year: "2026" };
 const userPath = (uid, path) => `users/${uid}/${path}`;
 
-// ─── Accent colors used on the arena face (single source: theme.js) ──
-const GOLD = tok.gold, LIVE = tok.live, RED = tok.danger;
-
-// ─── Minimal league seal icon (matches the overlay's mark) ────
-function LeagueSeal({ size = 22 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="1.4">
-      <circle cx="12" cy="12" r="9.4" />
-      <path d="M12 2.6v18.8M2.6 12h18.8M5 5c3.5 2.5 3.5 11.5 0 14M19 5c-3.5 2.5-3.5 11.5 0 14" strokeOpacity="0.75" />
-    </svg>
-  );
-}
-
-// ─── League branding badge (top bar) ───────────────────────────
-function LeagueBadge({ league }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-      <div style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-        border: league.logo ? "none" : `1.5px solid ${GOLD}`, background: league.logo ? "transparent" : "rgba(228,191,85,0.06)", overflow: "hidden" }}>
-        {league.logo
-          ? <img src={league.logo} alt="" style={{ width: 26, height: 26, objectFit: "contain" }} onError={e => e.target.style.display = "none"} />
-          : <LeagueSeal size={15} />}
-      </div>
-      <div style={{ lineHeight: 1.15 }}>
-        <div style={{ fontFamily: font.label, fontWeight: 700, fontSize: 11, letterSpacing: "0.1em", color: "rgba(255,255,255,0.85)" }}>
-          {league.line1}{league.line2 ? ` · ${league.line2}` : ""}
-        </div>
-        {league.year && <div style={{ fontFamily: font.num, fontWeight: 700, fontSize: 12, color: GOLD, marginTop: 1 }}>{league.year}</div>}
-      </div>
-    </div>
-  );
-}
-
-// ─── THEMES CONFIG (refined, lower glare) ─────────────────────
-const THEMES = {
-  dark: {
-    name: "Midnight (Dark)", bg: "#0B0C0F",
-    panelLR: "rgba(20,22,27,0.92)", panelC: "rgba(15,16,20,0.92)",
-    text: "#EDEFF3", textDim: "rgba(237,239,243,0.42)",
-    border: "rgba(255,255,255,0.09)", stripe: "rgba(255,255,255,0.03)",
-  },
-  light: {
-    name: "Daylight (Light)", bg: "#E6E9EE",
-    panelLR: "rgba(255,255,255,0.95)", panelC: "rgba(238,241,245,0.96)",
-    text: "#1B2430", textDim: "rgba(27,36,48,0.5)",
-    border: "rgba(27,36,48,0.14)", stripe: "rgba(27,36,48,0.04)",
-  },
-  fiba: {
-    name: "FIBA Blue", bg: "#04162B",
-    panelLR: "rgba(10,38,68,0.92)", panelC: "rgba(6,24,46,0.92)",
-    text: "#EDF3FA", textDim: "rgba(237,243,250,0.5)",
-    border: "rgba(255,255,255,0.13)", stripe: "rgba(255,255,255,0.04)",
-  },
-  bulls: {
-    name: "Arena Red", bg: "#1A0908",
-    panelLR: "rgba(42,15,14,0.92)", panelC: "rgba(24,9,8,0.92)",
-    text: "#F6ECEC", textDim: "rgba(246,236,236,0.5)",
-    border: "rgba(255,120,120,0.16)", stripe: "rgba(255,255,255,0.04)",
-  },
+// One face per sport. An id that isn't here (an older client meeting a newer
+// server) falls back to the default sport's face rather than a blank screen.
+const FACES = {
+  basketball: BasketballArena,
+  badminton: BadmintonArena,
+  football7: Football7Arena,
 };
-
-// ─── Helpers ──────────────────────────────────────────────────
-function formatGameClock(tenths, showTenths = true) {
-  const t = Math.max(0, tenths);
-  if (t > 600 || !showTenths) {
-    const totalSec = Math.floor(t / 10);
-    return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, "0")}`;
-  }
-  return `${Math.floor(t / 10)}.${Math.floor(t % 10)}`;
-}
-function formatShotClock(tenths) {
-  const t = Math.max(0, tenths);
-  if (t > 100) return String(Math.ceil(t / 10));
-  return `${Math.floor(t / 10)}.${Math.floor(t % 10)}`;
-}
 
 const defaultPlayers = () => Array.from({ length: 5 }, (_, i) => ({ num: "", name: `PLAYER ${i + 1}`, fouls: 0 }));
 
-// ─── Foul pip dots ────────────────────────────────────────────
-function PlayerFoulPips({ count, color, theme }) {
-  const c = count >= 5 ? RED : count >= 4 ? tok.warn : count >= 3 ? GOLD : color;
-  return (
-    <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-      {[1,2,3,4,5].map(i => (
-        <div key={i} style={{ width: 8, height: 8, borderRadius: "50%",
-          background: i <= count ? c : theme.stripe,
-          border: `1px solid ${i <= count ? c : theme.border}`, transition: "all .25s" }} />
-      ))}
-    </div>
-  );
+// ─── Venue behaviours ─────────────────────────────────────────
+
+/** True once the operator has been still for `ms`. Drives the chrome fade. */
+function useIdle(ms = 3500) {
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    let timer;
+    const wake = () => {
+      setIdle(false);
+      clearTimeout(timer);
+      timer = setTimeout(() => setIdle(true), ms);
+    };
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "wheel"];
+    events.forEach((e) => window.addEventListener(e, wake, { passive: true }));
+    wake();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, wake));
+    };
+  }, [ms]);
+  return idle;
 }
 
-// ─── Player row ───────────────────────────────────────────────
-function PlayerPanel({ players, color, align, theme }) {
-  const isLeft = align === "left";
-  return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      {players.map((p, i) => {
-        const fouls = p.fouls || 0;
-        const isDQ  = fouls >= 5;
-        const fc    = fouls >= 5 ? RED : fouls >= 4 ? tok.warn : fouls >= 3 ? GOLD : theme.text;
-        return (
-          <div key={i} style={{ display: "flex", flexDirection: isLeft ? "row" : "row-reverse",
-            alignItems: "center", padding: "6px 12px", gap: 8, borderBottom: `1px solid ${theme.border}`,
-            background: isDQ ? "rgba(222,91,87,0.14)" : i % 2 === 0 ? theme.stripe : "transparent", transition: "all .3s" }}>
-            <div style={{ fontFamily: font.num, fontSize: 18, fontWeight: 700, color: isDQ ? RED : color, width: 28, textAlign: "center", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{p.num || "—"}</div>
-            <div style={{ fontFamily: font.body, fontSize: 15, fontWeight: 600, color: isDQ ? "rgba(222,91,87,0.85)" : theme.text, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: isLeft ? "left" : "right" }}>{p.name || `PLAYER ${i + 1}`}</div>
-            <PlayerFoulPips count={fouls} color={color} theme={theme} />
-            <div style={{ fontFamily: font.num, fontSize: 18, fontWeight: 700, color: fc, width: 24, textAlign: "center", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{fouls}</div>
-            {isDQ && <div style={{ ...overline({ fontSize: 9, color: "#fff", letterSpacing: "0.08em" }), background: RED, padding: "2px 6px", borderRadius: 4, flexShrink: 0 }}>OUT</div>}
-          </div>
-        );
-      })}
-    </div>
-  );
+/** Keeps the panel awake for the length of a match. No-op where unsupported
+ *  (the API needs a secure context), which is why nothing here throws. */
+function useWakeLock() {
+  useEffect(() => {
+    if (!("wakeLock" in navigator)) return;
+    let lock = null;
+    let released = false;
+
+    const acquire = async () => {
+      try {
+        lock = await navigator.wakeLock.request("screen");
+      } catch {
+        // Denied, or the tab was backgrounded mid-request — the visibility
+        // listener below will try again when it matters.
+      }
+    };
+    acquire();
+
+    // The lock is dropped automatically whenever the tab is hidden, so it has
+    // to be taken again each time the screen comes back.
+    const onVisible = () => { if (!released && document.visibilityState === "visible") acquire(); };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      released = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      lock?.release?.().catch(() => {});
+    };
+  }, []);
 }
 
-// ─── Team foul dots (5) ───────────────────────────────────────
-function TeamFoulDots({ count, color, theme }) {
-  return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
-      {[1, 2, 3, 4, 5].map((i) => {
-        const active = i <= count;
-        const c = active && count >= 5 ? RED : color;
-        return <div key={i} style={{ width: 14, height: 14, borderRadius: "50%",
-          background: active ? c : theme.stripe, border: `1px solid ${active ? c : theme.border}`, transition: "all .25s" }} />;
-      })}
-    </div>
-  );
+function useFullscreen() {
+  const [isFull, setIsFull] = useState(() => !!document.fullscreenElement);
+  useEffect(() => {
+    const sync = () => setIsFull(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  const toggle = useCallback(() => {
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    else document.documentElement.requestFullscreen?.().catch(() => {});
+  }, []);
+  return [isFull, toggle];
 }
 
-// ─── Side Panel ───────────────────────────────────────────────
-function SidePanel({ team, players, teamName, logo, align, theme }) {
-  const isLeft = align === "left";
-  const color  = team.color;
-  const displayFouls = Math.min(team.teamFouls, 5);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", background: theme.panelLR,
-      borderRight: isLeft ? `1px solid ${color}45` : "none", borderLeft: isLeft ? "none" : `1px solid ${color}45`, overflow: "hidden", minWidth: 0 }}>
-      {/* Header */}
-      <div style={{ padding: "14px 16px 12px", background: `linear-gradient(${isLeft ? 135 : 225}deg, ${color}2A, ${theme.panelC})`, borderBottom: `1px solid ${color}45`, flexShrink: 0 }}>
-        <div style={{ display: "flex", flexDirection: isLeft ? "row" : "row-reverse", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <div style={{ width: 4, height: 34, background: color, borderRadius: 2, flexShrink: 0 }} />
-          {logo && (
-            <div style={{ width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.28)", borderRadius: r.sm, border: `1px solid ${color}45` }}>
-              <img src={logo} alt="" style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 4 }} onError={e => e.target.style.display = "none"} />
-            </div>
-          )}
-          <div style={{ flex: 1, minWidth: 0, textAlign: isLeft ? "left" : "right" }}>
-            <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 26, letterSpacing: "0.03em", color, lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{teamName}</div>
-            <div style={{ ...overline({ fontSize: 10, color: theme.textDim, letterSpacing: "0.28em", marginTop: 3 }) }}>{isLeft ? "HOME" : "AWAY"}</div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: isLeft ? "row" : "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <div style={{ textAlign: isLeft ? "left" : "right" }}>
-            <div style={{ ...overline({ fontSize: 10, color: theme.textDim, letterSpacing: "0.16em" }) }}>TEAM FOULS</div>
-            <div style={{ fontFamily: font.num, fontSize: 32, fontWeight: 700, lineHeight: 1, color: team.teamFouls >= 5 ? RED : theme.text, fontVariantNumeric: "tabular-nums" }}>{displayFouls}</div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <TeamFoulDots count={team.teamFouls} color={color} theme={theme} />
-            {team.teamFouls >= 5 && <div style={{ ...overline({ fontSize: 12, color: RED, letterSpacing: "0.18em" }), textAlign: "center", marginTop: 5 }}>● BONUS</div>}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: isLeft ? "row" : "row-reverse", padding: "5px 12px", borderBottom: `1px solid ${theme.border}`, background: theme.stripe, flexShrink: 0 }}>
-        {["#", "PLAYER", "FOULS"].map((h, i) => (
-          <div key={i} style={{ ...overline({ fontSize: 9.5, color: theme.textDim, letterSpacing: "0.14em" }), width: i === 0 ? 28 : i === 2 ? 70 : undefined, flex: i === 1 ? 1 : undefined, textAlign: i === 1 ? (isLeft ? "left" : "right") : "center" }}>{h}</div>
-        ))}
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        <PlayerPanel players={players} color={color} align={align} theme={theme} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Arena face · sports without a five-a-side roster panel ───
-// Badminton and football both want the same shape: two sides, the score, and
-// one status line — no player/foul columns. What differs is what hangs under
-// each score (games won vs cards) and whether there is a clock on top.
-function CenteredArena({ state, sport, theme, logoA, logoB, flashA, flashB }) {
-  const { teamA, teamB, period, serve, doubles, matchOver, clockTenths, isRunning } = state;
-  const caps = sport.caps;
-  const gamesNeeded = Math.ceil(sport.maxPeriods / 2);
-  const winner = teamA.gamesWon > teamB.gamesWon ? teamA : teamB;
-  const target = caps.clock ? sport.periodStart(period) + sport.periodLength : 0;
-  const overTime = caps.clock && clockTenths >= target;
-
-  const side = (team, key, logo, flash, align) => {
-    const serving = serve === key;
-    const name = doubles && team.partner ? `${team.name} / ${team.partner}` : team.name;
-    return (
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 24px", minWidth: 0 }}>
-        {logo && <img src={logo} alt="" style={{ height: 78, objectFit: "contain", marginBottom: 14 }} onError={e => e.target.style.display = "none"} />}
-        <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: "clamp(22px,2.6vw,38px)", color: team.color,
-          letterSpacing: "0.03em", textAlign: "center", lineHeight: 1.15, marginBottom: 8 }}>{name}</div>
-
-        <div style={{ height: 24, marginBottom: 6 }}>
-          {serving && (
-            <div style={{ ...overline({ fontSize: 13, color: GOLD, letterSpacing: "0.2em" }),
-              display: "flex", alignItems: "center", gap: 8, background: "rgba(228,191,85,0.10)",
-              border: `1px solid ${GOLD}55`, borderRadius: r.pill, padding: "4px 14px" }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: GOLD }} />
-              เสิร์ฟ · ฝั่ง{sport.serveCourt(team.score)}
-            </div>
-          )}
-        </div>
-
-        <div style={{ position: "relative" }}>
-          {flash && <div style={{ position: "absolute", top: -20, left: "50%", fontFamily: font.num, fontSize: 40, fontWeight: 700, color: team.color, animation: "flash-up 2s ease forwards", pointerEvents: "none" }}>{flash}</div>}
-          <div style={{ fontFamily: font.num, fontSize: "clamp(90px,15vw,210px)", fontWeight: 700, lineHeight: 1,
-            color: team.color, fontVariantNumeric: "tabular-nums", animation: flash ? "score-pop .3s ease" : "none" }}>{team.score}</div>
-        </div>
-
-        {caps.periodWins && (<>
-          <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
-            {Array.from({ length: gamesNeeded }).map((_, i) => (
-              <div key={i} style={{ width: 40, height: 10, borderRadius: 4,
-                background: i < team.gamesWon ? GOLD : theme.stripe,
-                border: `1px solid ${i < team.gamesWon ? GOLD : theme.border}`, transition: "all .25s" }} />
-            ))}
-          </div>
-          <div style={{ ...overline({ fontSize: 11, color: theme.textDim, letterSpacing: "0.22em", marginTop: 8 }) }}>เกมที่ชนะ</div>
-        </>)}
-
-        {caps.cards && (
-          <div style={{ display: "flex", gap: 18, marginTop: 20, alignItems: "center" }}>
-            {[["ใบเหลือง", team.yellowCards || 0, "#E3C038"], ["ใบแดง", team.redCards || 0, RED]].map(([label, n, col]) => (
-              <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                <div style={{ display: "flex", gap: 4, minHeight: 22, alignItems: "center" }}>
-                  {n === 0
-                    ? <div style={{ width: 15, height: 21, borderRadius: 3, border: `1px solid ${theme.border}`, background: theme.stripe }} />
-                    : Array.from({ length: Math.min(n, 5) }).map((_, i) => (
-                        <div key={i} style={{ width: 15, height: 21, borderRadius: 3, background: col }} />
-                      ))}
-                </div>
-                <div style={{ ...overline({ fontSize: 10, color: theme.textDim, letterSpacing: "0.18em" }) }}>{label} {n > 5 ? `×${n}` : ""}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: theme.panelC }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 26 }}>
-        <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 34, color: GOLD, letterSpacing: "0.06em" }}>
-          {matchOver ? `${winner.name} ชนะ` : sport.periodName(period)}
-        </div>
-        <div style={{ ...overline({ fontSize: 13, color: matchOver || overTime ? GOLD : theme.textDim, letterSpacing: "0.2em", marginTop: 6 }),
-          background: matchOver || overTime ? "rgba(228,191,85,0.12)" : theme.stripe, padding: "4px 14px", borderRadius: r.sm }}>
-          {caps.clock
-            ? `${isRunning ? "กำลังแข่ง" : "หยุด"}${overTime ? " · ทดเวลา" : ""}`
-            : matchOver ? "จบแมตช์" : `${doubles ? "ประเภทคู่" : "ประเภทเดี่ยว"} · ${teamA.gamesWon} – ${teamB.gamesWon}`}
-        </div>
-
-        {caps.clock && (
-          <div style={{ fontFamily: font.num, fontSize: "clamp(64px,9vw,120px)", fontWeight: 700, lineHeight: 1.1,
-            color: overTime ? GOLD : theme.text, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>
-            {formatGameClock(clockTenths, sport.clockShowsTenths)}
-          </div>
-        )}
-      </div>
-
-      <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center" }}>
-        {side(teamA, "teamA", logoA, flashA, "left")}
-        <div style={{ width: 1, alignSelf: "stretch", background: theme.border, margin: "60px 0" }} />
-        {side(teamB, "teamB", logoB, flashB, "right")}
-      </div>
-    </div>
-  );
-}
-
-// ─── Timeout callout ─────────────────────────────────────────
-function TimeoutCallout({ data }) {
+// ─── Timeout callout ──────────────────────────────────────────
+// Drawn inside the stage so it scales with everything else.
+function TimeoutCallout({ data, theme }) {
   if (!data) return null;
   return (
-    <div style={{ position: "fixed", bottom: "8%", left: "50%", transform: "translateX(-50%)", animation: "to-slide 7s ease forwards", zIndex: 200, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ ...overline({ fontSize: 14, color: "#fff", letterSpacing: "0.36em" }), background: RED, padding: "5px 30px", borderTopLeftRadius: r.sm, borderTopRightRadius: r.sm }}>TIMEOUT CALLED</div>
-      <div style={{ display: "flex", alignItems: "stretch", background: "rgba(15,16,20,0.98)", border: `1px solid ${data.color}`, borderBottomLeftRadius: r.md, borderBottomRightRadius: r.md, boxShadow: "0 20px 50px rgba(0,0,0,0.7)", minWidth: 400 }}>
-        <div style={{ width: 6, background: data.color }} />
-        <div style={{ padding: "20px 30px", flex: 1, textAlign: "center" }}>
-          <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 50, lineHeight: 1, color: data.color, letterSpacing: "0.03em" }}>{data.name}</div>
-          <div style={{ fontFamily: font.body, fontSize: 16, fontWeight: 500, color: tok.dim, marginTop: 8, letterSpacing: "0.06em" }}>เหลือ <span style={{ color: "#fff", fontFamily: font.num, fontSize: 20, fontWeight: 700 }}>{data.remaining}</span> ครั้ง</div>
+    <div style={{
+      position: "absolute", bottom: 90, left: "50%", zIndex: 20, pointerEvents: "none",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      animation: "arena-callout 7s ease forwards",
+    }}>
+      <Cap size={26} color="#fff" track="0.36em" style={{ background: RED, padding: "9px 46px", borderRadius: "10px 10px 0 0" }}>
+        TIMEOUT
+      </Cap>
+      <div style={{
+        display: "flex", alignItems: "stretch", minWidth: 660,
+        background: "rgba(12,13,16,0.97)", border: `2px solid ${data.color}`,
+        borderRadius: "0 0 14px 14px", boxShadow: "0 26px 70px rgba(0,0,0,0.72)",
+      }}>
+        <div style={{ width: 10, background: data.color }} />
+        <div style={{ flex: 1, padding: "26px 42px", textAlign: "center" }}>
+          <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 72, lineHeight: 1, color: data.color, letterSpacing: "0.03em" }}>
+            {data.name}
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 12, marginTop: 14 }}>
+            <Cap size={22} color={theme.textDim} track="0.14em">เหลือ</Cap>
+            <Num size={38} color="#fff">{data.remaining}</Num>
+            <Cap size={22} color={theme.textDim} track="0.14em">ครั้ง</Cap>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Operator chrome ──────────────────────────────────────────
+// Real screen pixels, not stage pixels: these controls are for whoever is
+// standing at the machine, so they should not shrink with the board.
+function Toolbar({ visible, themeId, setThemeId, customBg, setCustomBg, overscan, setOverscan, isFull, toggleFull, onBack }) {
+  const pill = { ...btn("neutral"), color: tok.dim, padding: "7px 14px", fontSize: 13, letterSpacing: "0.1em", whiteSpace: "nowrap" };
+  return (
+    <div style={{
+      position: "fixed", bottom: 22, left: "50%", transform: `translateX(-50%) translateY(${visible ? 0 : 26}px)`,
+      zIndex: 100, display: "flex", alignItems: "center", gap: 14, padding: "10px 16px",
+      background: "rgba(10,11,14,0.9)", border: `1px solid ${tok.lineStrong}`, borderRadius: r.pill,
+      backdropFilter: "blur(10px)", boxShadow: "0 12px 40px rgba(0,0,0,0.55)",
+      opacity: visible ? 1 : 0, pointerEvents: visible ? "auto" : "none",
+      transition: "opacity .3s ease, transform .3s ease",
+    }}>
+      <button onClick={onBack} style={pill}>← HOME</button>
+
+      <div style={{ width: 1, height: 22, background: tok.line }} />
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ ...overline({ fontSize: 10, color: tok.mute }) }}>THEME</span>
+        <select value={themeId} onChange={(e) => setThemeId(e.target.value)} style={{
+          background: "rgba(255,255,255,0.05)", color: tok.text, border: `1px solid ${tok.lineStrong}`,
+          borderRadius: r.sm, padding: "4px 8px", outline: "none", cursor: "pointer",
+          fontFamily: font.body, fontSize: 13,
+        }}>
+          {Object.entries(THEMES).map(([k, v]) => <option key={k} value={k} style={{ color: "#000" }}>{v.name}</option>)}
+        </select>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        <span style={{ ...overline({ fontSize: 10, color: tok.mute }) }}>BG</span>
+        <input type="color" value={customBg || THEMES[themeId].bg} onChange={(e) => setCustomBg(e.target.value)}
+          style={{ width: 24, height: 24, border: "none", background: "none", cursor: "pointer", padding: 0 }} />
+        {customBg && <button onClick={() => setCustomBg("")} title="คืนค่าสีตามธีม"
+          style={{ background: "none", border: "none", color: tok.danger, cursor: "pointer", fontSize: 14 }}>✕</button>}
+      </div>
+
+      <div style={{ width: 1, height: 22, background: tok.line }} />
+
+      {/* Some TVs and projectors crop the edge of the signal — this pulls the
+          whole board in so nothing important lands outside the picture. */}
+      <button onClick={() => setOverscan(!overscan)} title="ย่อขอบภาพสำหรับทีวีที่ตัดขอบ (S)"
+        style={{ ...pill, ...(overscan ? { color: GOLD, border: "1px solid rgba(216,182,92,0.4)", background: "rgba(228,191,85,0.12)" } : {}) }}>
+        SAFE AREA {overscan ? "ON" : "OFF"}
+      </button>
+
+      <button onClick={toggleFull} style={{ ...pill, color: tok.text }}>
+        {isFull ? "⤡ EXIT FULLSCREEN" : "⤢ FULLSCREEN"}
+      </button>
+
+      <span style={{ ...overline({ fontSize: 9.5, color: tok.faint, letterSpacing: "0.14em" }) }}>F · S · T</span>
     </div>
   );
 }
@@ -314,38 +206,80 @@ export default function DisplayBoard({ uid, onBack = () => { window.location.hre
   const LEAGUE_PATH = uid ? userPath(uid, "overlay_config/league") : null;
 
   // Placeholder until the first broadcast arrives — same registry the server
-  // builds its state from, so the two shapes can't drift apart.
+  // builds its state from, so the two shapes can't drift apart. It is veiled
+  // until `hasState`, so it is never mistaken for a real 0-0.
   const [state, setState] = useState(() => initialState(DEFAULT_SPORT));
+  const [hasState, setHasState] = useState(false);
 
   const [fbA, setFbA] = useState({ name: "HOME", logo: "", players: defaultPlayers() });
   const [fbB, setFbB] = useState({ name: "AWAY", logo: "", players: defaultPlayers() });
   const [dbConnected, setDbConnected] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
-  const fbConnected = dbConnected && socketConnected;
+  const live = dbConnected && socketConnected && hasState;
+
   const [flashA, setFlashA] = useState(null);
   const [flashB, setFlashB] = useState(null);
   const [toCallout, setToCallout] = useState(null);
+  const [league, setLeague] = useState(LEAGUE_DEFAULT);
 
   const [themeId, setThemeId] = useState(() => localStorage.getItem("arena_theme") || "dark");
   const [customBg, setCustomBg] = useState(() => localStorage.getItem("arena_custom_bg") || "");
-  const currentTheme = THEMES[themeId] || THEMES.dark;
-  const [league, setLeague] = useState(LEAGUE_DEFAULT);
+  const [overscan, setOverscan] = useState(() => localStorage.getItem("arena_overscan") === "1");
+  const theme = THEMES[themeId] || THEMES.dark;
+
+  const idle = useIdle(3500);
+  const [isFull, toggleFull] = useFullscreen();
+  useWakeLock();
 
   const prevScoreA = useRef(0);
   const prevScoreB = useRef(0);
-  const prevToA    = useRef(2);
-  const prevToB    = useRef(2);
+  const prevToA    = useRef(null);
+  const prevToB    = useRef(null);
 
+  // ── Preference writes ──
+  const chooseTheme = useCallback((id) => { setThemeId(id); localStorage.setItem("arena_theme", id); }, []);
+  const chooseBg = useCallback((hex) => {
+    setCustomBg(hex);
+    if (hex) localStorage.setItem("arena_custom_bg", hex);
+    else localStorage.removeItem("arena_custom_bg");
+  }, []);
+  const chooseOverscan = useCallback((on) => { setOverscan(on); localStorage.setItem("arena_overscan", on ? "1" : "0"); }, []);
+
+  // ── Keyboard: the board is often driven from a keyboard on a lectern ──
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      const k = e.key.toLowerCase();
+      if (k === "f") { e.preventDefault(); toggleFull(); }
+      else if (k === "s") { e.preventDefault(); chooseOverscan(!overscan); }
+      else if (k === "t") {
+        e.preventDefault();
+        const ids = Object.keys(THEMES);
+        chooseTheme(ids[(ids.indexOf(themeId) + 1) % ids.length]);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleFull, overscan, themeId, chooseOverscan, chooseTheme]);
+
+  // ── Rosters, crests and league branding ──
   useEffect(() => {
     if (!uid) return;
-    const parse = (d, fallback) => ({ name: d?.name || fallback, logo: d?.logo || "", players: Array.isArray(d?.players) ? d.players : defaultPlayers() });
-    const uA = onValue(ref(db, `${DB_PATH}/teamA`), s => setFbA(parse(s.val(), "HOME")));
-    const uB = onValue(ref(db, `${DB_PATH}/teamB`), s => setFbB(parse(s.val(), "AWAY")));
-    const uConn = onValue(ref(db, ".info/connected"), s => setDbConnected(!!s.val()));
-    const uL = onValue(ref(db, LEAGUE_PATH), s => { const v = s.val(); if (v) setLeague({ ...LEAGUE_DEFAULT, ...v }); });
+    const parse = (d, fallback) => ({
+      name: d?.name || fallback,
+      logo: d?.logo || "",
+      players: Array.isArray(d?.players) && d.players.length ? d.players : defaultPlayers(),
+    });
+    const uA = onValue(ref(db, `${DB_PATH}/teamA`), (s) => setFbA(parse(s.val(), "HOME")));
+    const uB = onValue(ref(db, `${DB_PATH}/teamB`), (s) => setFbB(parse(s.val(), "AWAY")));
+    const uConn = onValue(ref(db, ".info/connected"), (s) => setDbConnected(!!s.val()));
+    const uL = onValue(ref(db, LEAGUE_PATH), (s) => { const v = s.val(); if (v) setLeague({ ...LEAGUE_DEFAULT, ...v }); });
     return () => { uA(); uB(); uConn(); uL(); };
   }, [uid]);
 
+  // ── The live feed ──
   useEffect(() => {
     if (!uid) return;
     // Read-only viewer: no auth token, just asks to join this uid's broadcast room.
@@ -354,190 +288,99 @@ export default function DisplayBoard({ uid, onBack = () => { window.location.hre
     socket.on("disconnect", () => setSocketConnected(false));
     socket.on("stateUpdate", (s) => {
       if (!s?.teamA) return;
+
       if (s.teamA.score > prevScoreA.current) { setFlashA(`+${s.teamA.score - prevScoreA.current}`); setTimeout(() => setFlashA(null), 2000); }
       if (s.teamB.score > prevScoreB.current) { setFlashB(`+${s.teamB.score - prevScoreB.current}`); setTimeout(() => setFlashB(null), 2000); }
-      prevScoreA.current = s.teamA.score; prevScoreB.current = s.teamB.score;
-      if (prevToA.current > s.teamA.timeouts) { setToCallout({ name: s.teamA.name, color: s.teamA.color, remaining: s.teamA.timeouts }); setTimeout(() => setToCallout(null), 7000); }
-      if (prevToB.current > s.teamB.timeouts) { setToCallout({ name: s.teamB.name, color: s.teamB.color, remaining: s.teamB.timeouts }); setTimeout(() => setToCallout(null), 7000); }
-      prevToA.current = s.teamA.timeouts; prevToB.current = s.teamB.timeouts;
+      prevScoreA.current = s.teamA.score;
+      prevScoreB.current = s.teamB.score;
+
+      // Only sports that have timeouts carry the field at all, so a missing
+      // count must not be read as "a timeout was just called".
+      const callout = (team, prev) => {
+        const now = team.timeouts;
+        if (typeof now !== "number") { prev.current = null; return; }
+        if (typeof prev.current === "number" && prev.current > now) {
+          setToCallout({ name: team.name, color: team.color, remaining: now });
+          setTimeout(() => setToCallout(null), 7000);
+        }
+        prev.current = now;
+      };
+      callout(s.teamA, prevToA);
+      callout(s.teamB, prevToB);
+
       setState(s);
+      setHasState(true);
     });
     return () => socket.disconnect();
   }, [uid]);
 
+  // ── A display link with no game id ──
   if (!uid) {
     return (
-      <div style={{ width: "100vw", height: "100vh", background: tok.bg, color: tok.mute,
-        display: "flex", alignItems: "center", justifyContent: "center", fontFamily: font.body,
-        fontSize: 14, letterSpacing: "0.08em", textAlign: "center", padding: 20 }}>
+      <div style={{
+        width: "100vw", height: "100vh", background: tok.bg, color: tok.mute,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: font.body, fontSize: 18, letterSpacing: "0.06em", textAlign: "center", padding: 24,
+      }}>
+        <style>{FONT_IMPORT}</style>
         ลิงก์นี้ไม่มีรหัสเกม (?u=) — คัดลอกลิงก์ Arena ใหม่จากหน้า Control
       </div>
     );
   }
 
   const sport = getSport(state.sport);
-  const { teamA, teamB, period, clockTenths, isRunning, shotClockTenths, possession, jumpBall } = state;
-  const shotSec    = shotClockTenths / 10;
-  const shotUrgent = shotSec <= 5 && shotClockTenths > 0;
-  const shotColor  = shotUrgent ? RED : GOLD;
-  const clockUp    = clockTenths === 0;
+  const Face  = FACES[sport.id] || FACES[DEFAULT_SPORT];
+  const teams = { a: fbA, b: fbB };
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: customBg || currentTheme.bg,
-      display: "flex", flexDirection: "column", overflow: "hidden", userSelect: "none", transition: "background .3s ease", color: currentTheme.text }}>
+    <div style={{ cursor: idle ? "none" : "default", userSelect: "none" }}>
       <style>{`
         ${FONT_IMPORT}
-        @keyframes score-pop{0%{transform:scale(1)}50%{transform:scale(1.12)}100%{transform:scale(1)}}
-        @keyframes flash-up{0%{opacity:0;transform:translateX(-50%) translateY(0) scale(0.8)}20%{opacity:1;transform:translateX(-50%) translateY(-30px) scale(1.15)}80%{opacity:1;transform:translateX(-50%) translateY(-50px) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-70px)}}
-        @keyframes to-slide{0%{opacity:0;transform:translateX(-50%) translateY(30px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}85%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-20px)}}
         *{box-sizing:border-box;margin:0;padding:0;}
-        ::-webkit-scrollbar{width:4px;}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px;}
+        html,body,#root{overflow:hidden;background:${customBg || theme.bg};}
+        @keyframes arena-pop{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+        @keyframes arena-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+        @keyframes arena-breathe{0%,100%{opacity:1}50%{opacity:.5}}
+        @keyframes arena-flash{
+          0%{opacity:0;transform:translateX(-50%) translateY(0) scale(.8)}
+          20%{opacity:1;transform:translateX(-50%) translateY(-34px) scale(1.15)}
+          80%{opacity:1;transform:translateX(-50%) translateY(-56px) scale(1)}
+          100%{opacity:0;transform:translateX(-50%) translateY(-78px)}
+        }
+        @keyframes arena-callout{
+          0%{opacity:0;transform:translateX(-50%) translateY(46px)}
+          10%{opacity:1;transform:translateX(-50%) translateY(0)}
+          88%{opacity:1;transform:translateX(-50%) translateY(0)}
+          100%{opacity:0;transform:translateX(-50%) translateY(-26px)}
+        }
       `}</style>
 
-      {/* TOP BAR */}
-      <div style={{ height: 42, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "0 16px", background: "rgba(8,9,11,0.82)", borderBottom: "1px solid rgba(255,255,255,0.09)", backdropFilter: "blur(8px)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <button onClick={onBack} style={{ ...btn("neutral"), color: tok.dim, padding: "5px 12px", fontSize: 12, letterSpacing: "0.1em" }}>← HOME</button>
+      <Stage bg={customBg || theme.bg} overscan={overscan}>
+        <Face state={state} sport={sport} theme={theme} league={league} live={live}
+          teams={teams} flashA={flashA} flashB={flashB} />
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ ...overline({ fontSize: 10, color: "rgba(255,255,255,0.5)" }) }}>THEME</span>
-            <select value={themeId} onChange={(e) => { setThemeId(e.target.value); localStorage.setItem("arena_theme", e.target.value); }} style={{
-              background: "rgba(255,255,255,0.05)", color: "#fff", border: "1px solid rgba(255,255,255,0.14)", borderRadius: r.sm, padding: "3px 8px", outline: "none", cursor: "pointer", fontFamily: font.body, fontSize: 13 }}>
-              {Object.entries(THEMES).map(([k, v]) => <option key={k} value={k} style={{ color: "#000" }}>{v.name}</option>)}
-            </select>
+        <TimeoutCallout data={toCallout} theme={theme} />
+
+        {/* Never let an un-fed board pass for a real 0-0. */}
+        {!hasState && (
+          <div style={{
+            position: "absolute", inset: 0, zIndex: 30,
+            background: "rgba(8,9,11,0.86)", backdropFilter: "blur(3px)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 22,
+          }}>
+            <div style={{ width: 74, height: 74, borderRadius: "50%", border: `3px solid ${tok.line}`, borderTopColor: GOLD, animation: "arena-spin 1s linear infinite" }} />
+            <Cap size={30} color={tok.dim} track="0.3em">กำลังเชื่อมต่อกระดานคะแนน</Cap>
+            <Cap size={20} color={tok.faint} track="0.14em">รอสัญญาณจากหน้า Control</Cap>
           </div>
+        )}
+      </Stage>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ ...overline({ fontSize: 10, color: "rgba(255,255,255,0.5)" }) }}>BG</span>
-            <input type="color" value={customBg || currentTheme.bg} onChange={(e) => { setCustomBg(e.target.value); localStorage.setItem("arena_custom_bg", e.target.value); }} style={{ width: 22, height: 22, border: "none", background: "none", cursor: "pointer", padding: 0 }} />
-            {customBg && <button onClick={() => { setCustomBg(""); localStorage.removeItem("arena_custom_bg"); }} style={{ background: "none", border: "none", color: RED, cursor: "pointer", fontSize: 13 }}>✕</button>}
-          </div>
-        </div>
-        <LeagueBadge league={league} />
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: r.pill,
-          background: fbConnected ? tok.liveDim : tok.dangerDim, ...overline({ fontSize: 10.5, color: fbConnected ? LIVE : RED, letterSpacing: "0.12em" }) }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: fbConnected ? LIVE : RED }} />
-          {fbConnected ? "LIVE" : "OFFLINE"}
-        </div>
-      </div>
+      <style>{`@keyframes arena-spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* MAIN — the rally layout replaces the whole grid; the shell above and
-          the callout below are shared by every sport. */}
-      {!sport.caps.fouls ? (
-        <CenteredArena state={state} sport={sport} theme={currentTheme}
-          logoA={fbA.logo} logoB={fbB.logo} flashA={flashA} flashB={flashB} />
-      ) : (
-      <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "1fr minmax(360px, 38vw) 1fr" }}>
-        <SidePanel team={teamA} players={fbA.players} teamName={teamA.name || fbA.name} logo={fbA.logo} align="left" theme={currentTheme} />
-
-        {/* CENTER PANEL */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between",
-          background: currentTheme.panelC, borderLeft: `1px solid ${currentTheme.border}`, borderRight: `1px solid ${currentTheme.border}`, padding: "20px 0", transition: "background .3s" }}>
-
-          {/* GAME CLOCK & PERIOD */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "0 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: -6 }}>
-              <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 30, color: GOLD, letterSpacing: "0.06em" }}>
-                {period <= 4 ? `PERIOD ${period}` : `OT ${period - 4}`}
-              </div>
-              <div style={{ ...overline({ fontSize: 13, color: isRunning ? LIVE : currentTheme.textDim, letterSpacing: "0.16em" }),
-                background: isRunning ? tok.liveDim : currentTheme.stripe, padding: "4px 12px", borderRadius: r.sm }}>
-                {isRunning ? "LIVE" : "PAUSED"}
-              </div>
-            </div>
-            <div style={{ fontFamily: font.num, fontSize: "clamp(80px,12vw,150px)", fontWeight: 700, lineHeight: 1.1,
-              color: clockUp ? RED : currentTheme.text, fontVariantNumeric: "tabular-nums" }}>
-              {formatGameClock(clockTenths)}
-            </div>
-          </div>
-
-          <div style={{ width: "80%", height: 1, background: currentTheme.border, margin: "8px 0" }} />
-
-          {/* SCORES */}
-          <div style={{ display: "flex", width: "100%", alignItems: "center", position: "relative", padding: "10px 0" }}>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 20px" }}>
-              <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 34, color: teamA.color, letterSpacing: "0.03em", marginBottom: 6 }}>{teamA.name}</div>
-              <div style={{ width: 46, height: 3, background: GOLD, transform: "skewX(-16deg)", marginBottom: 10, opacity: 0.8 }} />
-              <div style={{ position: "relative" }}>
-                {flashA && <div style={{ position: "absolute", top: -20, left: "50%", fontFamily: font.num, fontSize: 40, fontWeight: 700, color: teamA.color, animation: "flash-up 2s ease forwards", pointerEvents: "none" }}>{flashA}</div>}
-                <div style={{ fontFamily: font.num, fontSize: "clamp(70px,10vw,130px)", fontWeight: 700, lineHeight: 1, color: teamA.color, fontVariantNumeric: "tabular-nums", animation: flashA ? "score-pop .3s ease" : "none" }}>{teamA.score}</div>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 50, flexShrink: 0 }}>
-              <div style={{ width: 1, height: 42, background: currentTheme.border }} />
-              <div style={{ ...overline({ fontSize: 16, color: currentTheme.textDim }), margin: "8px 0" }}>VS</div>
-              <div style={{ width: 1, height: 42, background: currentTheme.border }} />
-            </div>
-
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 20px" }}>
-              <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 34, color: teamB.color, letterSpacing: "0.03em", marginBottom: 6 }}>{teamB.name}</div>
-              <div style={{ width: 46, height: 3, background: GOLD, transform: "skewX(-16deg)", marginBottom: 10, opacity: 0.8 }} />
-              <div style={{ position: "relative" }}>
-                {flashB && <div style={{ position: "absolute", top: -20, left: "50%", fontFamily: font.num, fontSize: 40, fontWeight: 700, color: teamB.color, animation: "flash-up 2s ease forwards", pointerEvents: "none" }}>{flashB}</div>}
-                <div style={{ fontFamily: font.num, fontSize: "clamp(70px,10vw,130px)", fontWeight: 700, lineHeight: 1, color: teamB.color, fontVariantNumeric: "tabular-nums", animation: flashB ? "score-pop .3s ease" : "none" }}>{teamB.score}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* POSSESSION & JUMP BALL */}
-          <div style={{ width: "85%", display: "flex", alignItems: "center", background: currentTheme.stripe, borderRadius: r.md,
-            border: `1px solid ${currentTheme.border}`, padding: "8px 16px", margin: "10px 0 15px" }}>
-            <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ fontFamily: font.num, fontSize: 22, color: possession === "teamA" ? teamA.color : "transparent", transition: "all .3s", lineHeight: 1 }}>◀</div>
-              <div style={{ width: 11, height: 11, borderRadius: "50%", background: possession === "teamA" ? teamA.color : currentTheme.border, transition: "all .3s" }} />
-              <div style={{ ...overline({ fontSize: 16, color: possession === "teamA" ? teamA.color : currentTheme.textDim, letterSpacing: "0.06em" }), transition: "all .3s" }}>
-                {possession === "teamA" ? "POSS" : teamA.name}
-              </div>
-            </div>
-
-            <div style={{ flexShrink: 0, padding: "0 10px", textAlign: "center" }}>
-              {jumpBall ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                  <div style={{ fontSize: 22, color: GOLD, lineHeight: 1 }}>◆</div>
-                  <div style={{ ...overline({ fontSize: 10, color: GOLD, letterSpacing: "0.16em" }) }}>JUMP</div>
-                </div>
-              ) : (
-                <div style={{ ...overline({ fontSize: 11, color: currentTheme.border, letterSpacing: "0.16em" }) }}>BALL</div>
-              )}
-            </div>
-
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-              <div style={{ ...overline({ fontSize: 16, color: possession === "teamB" ? teamB.color : currentTheme.textDim, letterSpacing: "0.06em" }), transition: "all .3s" }}>
-                {possession === "teamB" ? "POSS" : teamB.name}
-              </div>
-              <div style={{ width: 11, height: 11, borderRadius: "50%", background: possession === "teamB" ? teamB.color : currentTheme.border, transition: "all .3s" }} />
-              <div style={{ fontFamily: font.num, fontSize: 22, color: possession === "teamB" ? teamB.color : "transparent", transition: "all .3s", lineHeight: 1 }}>▶</div>
-            </div>
-          </div>
-
-          {/* SHOT CLOCK & TIMEOUTS */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", padding: "0 20px" }}>
-            <div style={{ ...overline({ fontSize: 13, color: currentTheme.textDim, letterSpacing: "0.32em", marginBottom: -2 }) }}>SHOT CLOCK</div>
-            <div style={{ fontFamily: font.num, fontSize: "clamp(60px,8vw,100px)", fontWeight: 700, lineHeight: 1.1, color: shotColor, fontVariantNumeric: "tabular-nums" }}>
-              {formatShotClock(shotClockTenths)}
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", marginTop: 10,
-              background: currentTheme.stripe, padding: "10px 20px", borderRadius: r.sm, border: `1px solid ${currentTheme.border}` }}>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[1,2].map(i => <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: i <= teamA.timeouts ? teamA.color : currentTheme.border }} />)}
-              </div>
-              <div style={{ ...overline({ fontSize: 12, color: currentTheme.textDim, letterSpacing: "0.16em" }) }}>TIMEOUTS</div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[1,2].map(i => <div key={i} style={{ width: 14, height: 14, borderRadius: "50%", background: i <= teamB.timeouts ? teamB.color : currentTheme.border }} />)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <SidePanel team={teamB} players={fbB.players} teamName={teamB.name || fbB.name} logo={fbB.logo} align="right" theme={currentTheme} />
-      </div>
-      )}
-
-      <TimeoutCallout data={toCallout} />
+      <Toolbar visible={!idle} themeId={themeId} setThemeId={chooseTheme}
+        customBg={customBg} setCustomBg={chooseBg}
+        overscan={overscan} setOverscan={chooseOverscan}
+        isFull={isFull} toggleFull={toggleFull} onBack={onBack} />
     </div>
   );
 }

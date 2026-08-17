@@ -50,6 +50,16 @@ export default {
 
   periodName: (period) => `GAME ${period}`,
 
+  /** Games a side must take to win the match — the arena screen draws one pip per game. */
+  gamesToWin: GAMES_TO_WIN,
+
+  /**
+   * Would one more rally win the current game for `score`? Displays announce
+   * GAME POINT off this, and it reuses `gameWon` rather than restating the
+   * 21 / two-clear / 30-cap rule in the UI where the two could drift apart.
+   */
+  atGamePoint: (score, against) => gameWon(score + 1, against),
+
   /**
    * Which service court the serving side is in. Same rule for singles and
    * doubles: even score serves from the right, odd from the left. (Which of

@@ -40,15 +40,20 @@ export const teamDefault = { A: "#E86A3A", B: "#2FA8DC" };
 // ── Type ──────────────────────────────────────────────────────
 // Two-voice system: Oswald for numerals + headings, Barlow Condensed for
 // labels & UI. Tabular numerals everywhere numbers live.
+// Oswald and Barlow Condensed carry no Thai glyphs, so Thai text used to fall
+// through to whatever the machine happened to have — which on an arena PC or a
+// TV browser is a coin toss. Noto Sans Thai sits behind the Latin faces in
+// every stack: the browser picks per glyph, so Latin still renders in the
+// display faces and Thai renders the same way on every screen.
 export const font = {
-  num:   "'Oswald', system-ui, sans-serif",     // scores, clocks
-  head:  "'Oswald', system-ui, sans-serif",     // headings
-  label: "'Barlow Condensed', system-ui, sans-serif", // labels, buttons
-  body:  "'Barlow Condensed', system-ui, sans-serif",
+  num:   "'Oswald', 'Noto Sans Thai', system-ui, sans-serif",     // scores, clocks
+  head:  "'Oswald', 'Noto Sans Thai', system-ui, sans-serif",     // headings
+  label: "'Barlow Condensed', 'Noto Sans Thai', system-ui, sans-serif", // labels, buttons
+  body:  "'Barlow Condensed', 'Noto Sans Thai', system-ui, sans-serif",
 };
 
 export const FONT_IMPORT =
-  "@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&display=swap');";
+  "@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');";
 
 // ── Radii / elevation ─────────────────────────────────────────
 export const r = { sm: 8, md: 11, lg: 14, xl: 18, pill: 999 };
