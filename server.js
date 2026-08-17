@@ -442,7 +442,7 @@ setInterval(() => {
 // ✅ FIX 4: ใช้ process.env.PORT สำหรับ Render
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
-  console.log(`\n🏀 Basketball Scoreboard`);
+  console.log(`\n📊 Scoreboard Control`);
   console.log(`========================`);
   // Printed so a CORS rejection is diagnosable from the host's logs alone —
   // an origin missing from this list is why a control panel sits on OFFLINE.

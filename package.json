@@ -1,8 +1,8 @@
 {
-  "name": "basketball-scoreboard",
+  "name": "scoreboard-control",
   "version": "1.0.0",
   "type": "module",
-  "description": "Live Basketball Scoreboard for OBS",
+  "description": "Live multi-sport scoreboard for OBS overlays and arena displays",
   "scripts": {
     "server": "node server.js",
     "client": "vite",

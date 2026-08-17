@@ -77,7 +77,7 @@ export default function Login() {
             </svg>
           </div>
           <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 22, letterSpacing: "0.04em" }}>
-            BASKETBALL <span style={{ color: c.dim, fontWeight: 300 }}>SCOREBOARD</span>
+            SCOREBOARD <span style={{ color: c.dim, fontWeight: 300 }}>CONTROL</span>
           </div>
           <div style={{ ...overline({ fontSize: 9.5, marginTop: 6, letterSpacing: "0.32em" }) }}>
             {mode === "signup" ? "สร้างบัญชีใหม่" : "เข้าสู่ระบบ"}

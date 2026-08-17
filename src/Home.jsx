@@ -30,7 +30,7 @@ const Ball = ({ size = 30 }) => (
 
 export default function Home({ onNavigate }) {
   const cards = [
-    { id: "control", index: "01", icon: "control", title: "SCOREBOARD CONTROL",
+    { id: "control", index: "01", icon: "control", title: "CONTROL PANEL",
       desc: "แผงควบคุมหลักของ Operator — คะแนน นาฬิกา ฟาวล์ และ Timeout",
       hint: "OPERATOR", accent: c.gold },
     { id: "display", index: "02", icon: "display", title: "ARENA DISPLAY",
@@ -78,10 +78,10 @@ export default function Home({ onNavigate }) {
           <div>
             <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: "clamp(26px,4vw,40px)",
               letterSpacing: "0.06em", lineHeight: 0.95 }}>
-              BASKETBALL <span style={{ color: c.dim, fontWeight: 300 }}>SCOREBOARD</span>
+              SCOREBOARD <span style={{ color: c.dim, fontWeight: 300 }}>CONTROL</span>
             </div>
             <div style={{ ...overline({ marginTop: 6, color: c.mute, letterSpacing: "0.42em" }) }}>
-              LIVE BROADCAST SYSTEM
+              MULTI-SPORT LIVE SYSTEM
             </div>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function Home({ onNavigate }) {
       {/* Footer */}
       <footer style={{ marginTop: "auto", paddingTop: 48, textAlign: "center",
         ...overline({ fontSize: 9.5, color: c.faint, letterSpacing: "0.32em" }) }}>
-        THAILAND OPEN 2026 · REALTIME VIA SOCKET.IO
+        MULTI-SPORT SCOREBOARD · REALTIME VIA SOCKET.IO
       </footer>
     </div>
   );
