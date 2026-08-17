@@ -1,6 +1,7 @@
 // Login.jsx — email/password sign-in / sign-up, "Broadcast Console" design system
 import { useState } from "react";
 import { auth } from "./firebase";
+import Mark from "./Mark.jsx";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -71,10 +72,7 @@ export default function Login() {
         <div style={{ textAlign: "center", marginBottom: 26 }}>
           <div style={{ width: 46, height: 46, borderRadius: r.md, background: c.surface2, border: `1px solid ${c.lineStrong}`,
             display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={c.text} strokeWidth="1.4">
-              <circle cx="12" cy="12" r="9.2" />
-              <path d="M12 2.8v18.4M2.8 12h18.4M5.2 5.2c3.4 2.4 3.4 11.2 0 13.6M18.8 5.2c-3.4 2.4-3.4 11.2 0 13.6" strokeOpacity="0.55" />
-            </svg>
+            <Mark size={24} color={c.text} />
           </div>
           <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: 22, letterSpacing: "0.04em" }}>
             SCOREBOARD <span style={{ color: c.dim, fontWeight: 300 }}>CONTROL</span>

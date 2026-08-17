@@ -10,6 +10,7 @@ import { useConfirm } from "./ConfirmDialog";
 import { c, font, r, shadow, overline, panel, readout, btn, FONT_IMPORT } from "./theme";
 import { SPORTS, getSport, isSport, initialState, DEFAULT_SPORT } from "../shared/sports/index.js";
 import { LEAGUE_DEFAULT } from "./league";
+import Mark from "./Mark.jsx";
 import { unlockAudio, playHorn, playBuzzer } from "./sound";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
@@ -692,22 +693,13 @@ function PvCards({ team, variant }) {
   );
 }
 
-function LeagueSeal({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth="1.4">
-      <circle cx="12" cy="12" r="9.4" />
-      <path d="M12 2.6v18.8M2.6 12h18.8M5 5c3.5 2.5 3.5 11.5 0 14M19 5c-3.5 2.5-3.5 11.5 0 14" strokeOpacity="0.75" />
-    </svg>
-  );
-}
-
 function LeagueBlock({ league }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 12px 0 10px",
       background: "linear-gradient(180deg,#15161c,#0a0b0f)", borderRight: `1px solid ${c.line}` }}>
       {league.logo
         ? <img src={league.logo} alt="" style={{ width: 34, height: 34, objectFit: "contain" }} onError={e => e.target.style.display = "none"} />
-        : <div style={{ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${GOLD}`, background: "rgba(228,191,85,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><LeagueSeal /></div>}
+        : <div style={{ width: 32, height: 32, borderRadius: "50%", border: `1.5px solid ${GOLD}`, background: "rgba(228,191,85,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><Mark size={20} color={GOLD} /></div>}
       <div style={{ lineHeight: 1 }}>
         {league.line1 && <div style={{ fontFamily: font.label, fontWeight: 700, fontSize: 10, letterSpacing: "0.12em", color: c.text }}>{league.line1}</div>}
         {league.line2 && <div style={{ fontFamily: font.label, fontWeight: 700, fontSize: 9, letterSpacing: "0.12em", color: c.dim, marginTop: 1 }}>{league.line2}</div>}
@@ -965,7 +957,7 @@ function LeagueEditor({ league, onSave, onClose }) {
       <div style={{ display: "flex", gap: 10, marginBottom: 11 }}>
         <div style={{ width: 54, height: 54, borderRadius: r.md, background: c.surface2, border: `1px solid ${c.line}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
           {logo ? <img src={logo} alt="" style={{ width: 46, height: 46, objectFit: "contain" }} onError={e => e.target.style.display = "none"} />
-                : <div style={{ width: 40, height: 40, borderRadius: "50%", border: `1.5px solid ${GOLD}`, display: "flex", alignItems: "center", justifyContent: "center" }}><LeagueSeal size={22} /></div>}
+                : <div style={{ width: 40, height: 40, borderRadius: "50%", border: `1.5px solid ${GOLD}`, display: "flex", alignItems: "center", justifyContent: "center" }}><Mark size={22} color={GOLD} /></div>}
         </div>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
           <button onClick={() => fileRef.current.click()} style={{ ...btn("neutral"), padding: "8px 0", fontSize: 12, borderStyle: "dashed", color: c.dim }}>เลือกโลโก้จากเครื่อง · ≤500KB</button>

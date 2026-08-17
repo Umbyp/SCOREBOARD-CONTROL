@@ -1,5 +1,6 @@
 // Home.jsx — navigation hub, "Broadcast Console" design system
 import { c, font, r, overline, shadow, FONT_IMPORT } from "./theme";
+import Mark from "./Mark.jsx";
 
 // ── Minimal line icons (no emoji) ─────────────────────────────
 const Icon = ({ name, size = 22, color = "currentColor" }) => {
@@ -19,14 +20,6 @@ const Icon = ({ name, size = 22, color = "currentColor" }) => {
     default: return null;
   }
 };
-
-const Ball = ({ size = 30 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-    stroke={c.text} strokeWidth="1.4">
-    <circle cx="12" cy="12" r="9.2" />
-    <path d="M12 2.8v18.4M2.8 12h18.4M5.2 5.2c3.4 2.4 3.4 11.2 0 13.6M18.8 5.2c-3.4 2.4-3.4 11.2 0 13.6" strokeOpacity="0.55" />
-  </svg>
-);
 
 export default function Home({ onNavigate }) {
   const cards = [
@@ -73,7 +66,7 @@ export default function Home({ onNavigate }) {
           <div style={{ width: 52, height: 52, borderRadius: r.md, background: c.surface,
             border: `1px solid ${c.lineStrong}`, display: "flex", alignItems: "center",
             justifyContent: "center", flexShrink: 0 }}>
-            <Ball size={28} />
+            <Mark size={28} color={c.text} />
           </div>
           <div>
             <div style={{ fontFamily: font.head, fontWeight: 600, fontSize: "clamp(26px,4vw,40px)",
