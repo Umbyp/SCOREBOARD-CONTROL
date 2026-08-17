@@ -9,9 +9,9 @@ import PlayerManager from "./PlayerManager";
 import { useConfirm } from "./ConfirmDialog";
 import { c, font, r, shadow, overline, panel, readout, btn, FONT_IMPORT } from "./theme";
 import { SPORTS, getSport, isSport, initialState, DEFAULT_SPORT } from "../shared/sports/index.js";
+import { LEAGUE_DEFAULT } from "./league";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
-const LEAGUE_DEFAULT = { logo: "", line1: "BASKETBALL", line2: "THAI LEAGUE", year: "2026" };
 const userPath = (uid, path) => `users/${uid}/${path}`;
 const logoKey = (teamKey, uid) => `overlay_logo_${teamKey === "teamA" ? "a" : "b"}_${uid}`;
 
@@ -683,7 +683,7 @@ function CenterColRally({ state, sport }) {
   );
 }
 
-// ─── Thai League overlay bits (shared look with public/overlay.html) ──
+// ─── Overlay preview bits (shared look with public/overlay.html) ──
 const GOLD = "#E4BF55";
 function ordinal(q) { return q > 4 ? `OT${q - 4}` : (["1ST", "2ND", "3RD", "4TH"][q - 1] || `Q${q}`); }
 
@@ -1001,16 +1001,16 @@ function LeagueEditor({ league, onSave, onClose }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 7 }}>
         <div>
           <div style={{ ...overline({ fontSize: 9, marginBottom: 4 }) }}>บรรทัด 1</div>
-          <input value={line1} maxLength={18} onChange={e => setLine1(e.target.value.toUpperCase())} placeholder="BASKETBALL" style={inp} />
+          <input value={line1} maxLength={18} onChange={e => setLine1(e.target.value.toUpperCase())} placeholder="เช่น BANGMOD OPEN" style={inp} />
         </div>
         <div>
           <div style={{ ...overline({ fontSize: 9, marginBottom: 4 }) }}>บรรทัด 2</div>
-          <input value={line2} maxLength={18} onChange={e => setLine2(e.target.value.toUpperCase())} placeholder="THAI LEAGUE" style={inp} />
+          <input value={line2} maxLength={18} onChange={e => setLine2(e.target.value.toUpperCase())} placeholder="เช่น รอบชิงชนะเลิศ" style={inp} />
         </div>
       </div>
       <div style={{ marginBottom: 12 }}>
         <div style={{ ...overline({ fontSize: 9, marginBottom: 4 }) }}>ปี / รุ่น</div>
-        <input value={year} maxLength={10} onChange={e => setYear(e.target.value)} placeholder="2026" style={inp} />
+        <input value={year} maxLength={10} onChange={e => setYear(e.target.value)} placeholder={LEAGUE_DEFAULT.year} style={inp} />
       </div>
 
       <div style={{ display: "flex", gap: 6 }}>
@@ -1236,7 +1236,11 @@ export default function App({ user, uid, onSignOut }) {
   const arenaUrl = `${window.location.origin}${window.location.pathname}?view=display&u=${uid}`;
 
   const handleNavigate = (dest) => {
+    // The overlay and the arena board are both *second screens* — an OBS
+    // browser source and the venue TV. Neither belongs inside the operator's
+    // window, so both open standalone rather than replacing this view.
     if (dest === "overlay") { window.open(overlayUrl, "_blank"); return; }
+    if (dest === "display") { window.open(arenaUrl, "_blank"); return; }
     setView(dest);
   };
 

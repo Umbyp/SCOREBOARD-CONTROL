@@ -100,6 +100,20 @@ test("points after the match is decided are ignored", () => {
   assert.equal(s.teamA.gamesWon, gamesBefore, "no extra games are awarded");
 });
 
+test("game point is exactly the point that would win the game", () => {
+  const atGP = badminton.atGamePoint;
+
+  assert.equal(atGP(20, 15), true, "20-15, the next point takes it");
+  assert.equal(atGP(19, 15), false, "19-15 is a point short");
+  assert.equal(atGP(20, 20), false, "at 20-20 nobody is a point from the game");
+  assert.equal(atGP(21, 20), true, "21-20 needs one more for two clear");
+  assert.equal(atGP(20, 19), true, "20-19 → 21-19 is two clear");
+
+  // The 30 cap: at 29-29 either side ends it with the next rally.
+  assert.equal(atGP(29, 29), true);
+  assert.equal(atGP(28, 29), false, "29-29 is not a win");
+});
+
 test("service court follows the serving side's score parity", () => {
   assert.equal(badminton.serveCourt(0), "ขวา");
   assert.equal(badminton.serveCourt(1), "ซ้าย");

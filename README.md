@@ -1,6 +1,7 @@
-# 🏀 Basketball Scoreboard — OBS Live Stream System
+# 📊 Scoreboard Control — OBS & Arena Live System
 
-ระบบ Scoreboard สำหรับ Live Stream บาสเก็ตบอล ผ่าน OBS
+ระบบ Scoreboard สำหรับ Live Stream ผ่าน OBS และขึ้นจอในสนาม
+รองรับบาสเกตบอล · แบดมินตัน · ฟุตบอล 7 คน
 สร้างด้วย React + Tailwind + Node.js + Socket.io
 
 ---
@@ -8,7 +9,7 @@
 ## 📁 โครงสร้างไฟล์
 
 ```
-basketball-scoreboard/
+scoreboard-control/
 ├── server.js              ← Backend (Socket.io + Express)
 ├── package.json
 ├── vite.config.js
@@ -43,8 +44,8 @@ npm -v
 
 ```bash
 # 1. สร้างโฟลเดอร์ project
-mkdir basketball-scoreboard
-cd basketball-scoreboard
+mkdir scoreboard-control
+cd scoreboard-control
 
 # 2. วางไฟล์ทั้งหมดตามโครงสร้างข้างบน
 
@@ -65,11 +66,11 @@ node server.js
 
 ถ้าสำเร็จจะเห็น:
 ```
-🏀 Basketball Scoreboard Server
-================================
-🖥️  Control Panel : http://localhost:5173
-📺 OBS Overlay   : http://localhost:3001/overlay
-🔌 Socket Server : http://localhost:3001
+📊 Scoreboard Control
+========================
+🔓 Allowed origins: http://localhost:5173
+🖥️  Control : http://localhost:5173
+📺 Overlay  : http://localhost:3001/overlay
 ```
 
 **Terminal 2 — รัน React Control Panel:**

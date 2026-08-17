@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Basketball Overlay — Thai League</title>
+  <title>Scoreboard Overlay</title>
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -180,9 +180,12 @@
         <img id="lg-logo" alt="" />
       </div>
       <div class="txt">
-        <div class="l1" id="lg-l1">BASKETBALL</div>
-        <div class="l2" id="lg-l2">THAI LEAGUE</div>
-        <div class="yr" id="lg-yr">2026</div>
+        <!-- Neutral placeholders, kept in step with src/league.js (this file is
+             served statically and cannot import it). The sport is named
+             elsewhere on the bug, so the badge must not claim one. -->
+        <div class="l1" id="lg-l1">SCOREBOARD</div>
+        <div class="l2" id="lg-l2" style="display:none"></div>
+        <div class="yr" id="lg-yr"></div>
       </div>
     </div>
 
@@ -453,6 +456,14 @@
     showTO._t = setTimeout(() => el.classList.remove('visible'), 5000);
   }
 
+  // Mirror of src/league.js — this file is static and cannot import it, so the
+  // two copies have to be edited together.
+  const LEAGUE_DEFAULT = {
+    line1: 'SCOREBOARD',
+    line2: '',
+    year: String(new Date().getFullYear()),
+  };
+
   // ── Firebase league branding sync ──
   fbDb.ref(userPath('overlay_config/league')).on('value', snap => {
     const v = snap.val() || {};
@@ -460,9 +471,9 @@
     const img  = document.getElementById('lg-logo');
     if (v.logo && v.logo.trim() !== '') { img.src = v.logo; seal.classList.add('has-logo'); }
     else { seal.classList.remove('has-logo'); img.removeAttribute('src'); }
-    setLeagueLine('lg-l1', v.line1 != null ? v.line1 : 'BASKETBALL');
-    setLeagueLine('lg-l2', v.line2 != null ? v.line2 : 'THAI LEAGUE');
-    setLeagueLine('lg-yr', v.year  != null ? v.year  : '2026');
+    setLeagueLine('lg-l1', v.line1 != null ? v.line1 : LEAGUE_DEFAULT.line1);
+    setLeagueLine('lg-l2', v.line2 != null ? v.line2 : LEAGUE_DEFAULT.line2);
+    setLeagueLine('lg-yr', v.year  != null ? v.year  : LEAGUE_DEFAULT.year);
   });
   function setLeagueLine(id, txt) {
     const el = document.getElementById(id);
