@@ -10,6 +10,7 @@ import { useConfirm } from "./ConfirmDialog";
 import { c, font, r, shadow, overline, panel, readout, btn, FONT_IMPORT } from "./theme";
 import { SPORTS, getSport, isSport, initialState, DEFAULT_SPORT } from "../shared/sports/index.js";
 import { LEAGUE_DEFAULT } from "./league";
+import { unlockAudio, playHorn, playBuzzer } from "./sound";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 const userPath = (uid, path) => `users/${uid}/${path}`;
@@ -19,31 +20,6 @@ const logoKey = (teamKey, uid) => `overlay_logo_${teamKey === "teamA" ? "a" : "b
 // App's mount effect below) so its auth token can be attached — every nested
 // component still calls the module-level send() below, unchanged.
 let socket = null;
-
-// ─── Sounds ───────────────────────────────────────────────────
-const hornAudio   = typeof Audio !== "undefined" ? new Audio("/horn.mp3") : null;
-const buzzerAudio = typeof Audio !== "undefined" ? new Audio("/horn.mp3") : null;
-if (hornAudio)   { hornAudio.preload   = "auto"; hornAudio.volume   = 0.8; }
-if (buzzerAudio) { buzzerAudio.preload = "auto"; buzzerAudio.volume = 1.0; }
-
-let _audioUnlocked = false;
-function unlockAudio() {
-  if (_audioUnlocked) return; _audioUnlocked = true;
-  [hornAudio, buzzerAudio].forEach(a => {
-    if (!a) return;
-    a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
-  });
-}
-const playHorn = () => {
-  if (!hornAudio) return; unlockAudio();
-  hornAudio.currentTime = 0; hornAudio.volume = 0.8;
-  hornAudio.play().catch(() => {});
-};
-const playBuzzer = () => {
-  if (!buzzerAudio) return; unlockAudio();
-  buzzerAudio.currentTime = 0; buzzerAudio.volume = 1.0;
-  buzzerAudio.play().catch(() => {});
-};
 
 // ─── Helpers ─────────────────────────────────────────────────
 function formatGameClock(tenths, showTenths = true) {
@@ -1196,6 +1172,10 @@ export default function App({ user, uid, onSignOut }) {
   useEffect(() => {
     const kd = (e) => {
       if (e.target.tagName === "INPUT" || view !== "control") return;
+      // A keypress is a user gesture as much as a click is; without this an
+      // operator who only ever uses the keyboard would reach 0:00 with the
+      // buzzer still unprimed, and the browser would refuse to sound it.
+      unlockAudio();
       // Don't fire shortcuts for controls this sport doesn't have — the server
       // would reject the action anyway, and a dead keypress is confusing.
       switch (e.code) {
