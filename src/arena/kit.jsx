@@ -17,6 +17,7 @@
 
 import { useEffect, useState } from "react";
 import { c as tok, font, overline } from "../theme";
+import Mark from "../Mark.jsx";
 
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
@@ -217,15 +218,6 @@ export function Bars({ count, total, color, theme, w = 58, h = 14, gap = 11 }) {
 }
 
 // ─── League branding ──────────────────────────────────────────
-function LeagueSeal({ size = 30, color = GOLD }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.4">
-      <circle cx="12" cy="12" r="9.4" />
-      <path d="M12 2.6v18.8M2.6 12h18.8M5 5c3.5 2.5 3.5 11.5 0 14M19 5c-3.5 2.5-3.5 11.5 0 14" strokeOpacity="0.75" />
-    </svg>
-  );
-}
-
 /** A team crest. Renders nothing at all when there is no logo, so the layouts
  *  can reserve the space themselves and stay symmetrical either way. */
 export function Crest({ logo, size, color }) {
@@ -261,7 +253,7 @@ export function ArenaHeader({ league, sportLabel, live, theme }) {
           {league.logo
             ? <img src={league.logo} alt="" style={{ width: 52, height: 52, objectFit: "contain" }}
                 onError={(e) => { e.target.style.display = "none"; }} />
-            : <LeagueSeal size={30} color={theme.accent} />}
+            : <Mark size={30} color={theme.accent} />}
         </div>
         <div style={{ minWidth: 0 }}>
           <Cap size={21} color={theme.text} track="0.14em" style={{ opacity: 0.9, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
